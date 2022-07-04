@@ -1,0 +1,59 @@
+export interface SimpleUser {
+    id: string;
+    name: string;
+    teacher: boolean;
+    child: string;
+    type: string;
+};
+
+export interface School {
+    id: string;
+    name: string;
+};
+
+export interface Grade {
+    id: string;
+    fullName: string;
+    subject: string;
+    deliberation: string;
+    conceptual: string;
+    averageFirstFour: string;
+    averageSecondFour: string;
+    final: string;
+}
+
+export interface GradeStudent {
+    subject: string;
+    deliberation: string;
+    conceptual: string;
+    averageFirstFour: string;
+    averageSecondFour: string;
+    final: string;
+}
+
+export interface GradeParsed {
+    deliberation: string;
+    conceptual: string;
+    averageFirstFour: string;
+    averageSecondFour: string;
+    final: string;
+}
+
+export interface User {
+    token?: string;
+    id: string;
+    name: string;
+    password?: string;
+    administrator?: string[];
+    teacher?: string;
+    parent?: string[];
+    child?: string;
+    grades?: Grade[] | GradeStudent[] | Grade[][];
+    avaliable: SimpleUser[];
+    schools?: School[];
+};
+
+export interface File {
+    id: string;
+    name: string;
+};
