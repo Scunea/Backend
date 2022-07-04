@@ -14,6 +14,9 @@
 # environment variables
 .env
 
+# keys
+*.key
+
 # misc
 .DS_Store
 .env.local
