@@ -9,10 +9,10 @@ export default (app: express.Application) => {
     app.post('/upload', upload.array('upload'), (req: express.Request, res: express.Response) => {
         let uuids: string[] = [];
         if (Array.isArray(req.files)) {
-            for(const file of req.files) {
+            for (const file of req.files) {
                 const uuid = crypto.randomUUID() + '.' + mime.extension(file?.mimetype ?? '');
                 uuids.push(uuid);
-            fs.writeFileSync(__dirname + '/../../files/' + uuid, file.buffer, "binary");
+                fs.writeFileSync(__dirname + '/../../files/' + uuid, file.buffer, "binary");
             }
             const preparedResponse = uuids.map(uuid => {
                 return {
@@ -20,7 +20,7 @@ export default (app: express.Application) => {
                     url: req.protocol + '://' + req.get('host') + '/static/' + uuid // The way I'm getting the URl isn't good
                 }
             });
-        res.status(201).send(!req.headers.simple ? preparedResponse : preparedResponse[0]);
+            res.status(201).send(!req.headers.simple ? preparedResponse : preparedResponse[0]);
         } else {
             res.status(400).send({ error: "Missing required argument." });
         }
