@@ -75,9 +75,6 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
                 let avaliableUsers = dbRes.rows.map(x => x.id);
-                if (!dbRes.rows.find(x => x.id === res.locals.user).teacher) {
-                    avaliableUsers = avaliableUsers.filter(x => !x.teacher);
-                }
                 if (JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school]) {
                     if (!activity.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                         const users = dbRes.rows;
@@ -139,9 +136,6 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                     if (!err) {
                         if (oldActivity.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
                             let avaliableUsers = dbRes.rows.map(x => x.id);
-                            if (!dbRes.rows.find(x => x.id === res.locals.user).teacher) {
-                                avaliableUsers = avaliableUsers.filter(x => !x.teacher);
-                            }
                             if (JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school]) {
                                 if (!newActivity.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                                     if (newActivity.title && newActivity.receiver.length > 0 && !newActivity.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
@@ -236,7 +230,10 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             .filter((x) => {
                 return x !== '';
             })[0];
-
+            database.query(`SELECT * FROM users`, async (err, dbRes) => {
+                if (!err) {
+                    if (!JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
+                        
         database.query(`SELECT * FROM activities`, async (err, dbRes) => {
             if (!err) {
                 const activity = dbRes.rows.find(x => x.id === activityId);
@@ -264,13 +261,21 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         res.status(400).send({ error: "Missing required argument." });
                     }
                 } else {
-                    res.status(404).send({ error: "Not. found." });
+                    res.status(404).send({ error: "Not found." });
                 }
             } else {
                 console.log(err);
                 res.status(500).send({ error: "Server error." });
             }
         });
+    } else {
+        res.status(403).send({ error: "Not authorized." });
+    }
+} else {
+    console.log(err);
+    res.status(500).send({ error: "Server error." });
+}
+            });
     });
 
     app.post('/activities/deliver/*', (req: express.Request, res: express.Response) => {
@@ -282,7 +287,10 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             .filter((x) => {
                 return x !== '';
             })[0];
-
+            database.query(`SELECT * FROM users`, async (err, dbRes) => {
+                if (!err) {
+                    const userRows = dbRes.rows;
+                    if (!JSON.parse(userRows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(userRows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
         database.query(`SELECT * FROM activities`, async (err, dbRes) => {
             if (!err) {
                 const activity = dbRes.rows.find(x => x.id === activityId);
@@ -301,19 +309,13 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                 };
                                 database.query(`UPDATE activities SET delivered = $1, result = $2 WHERE id = $3`, [JSON.stringify(delivered), JSON.stringify(results), activityId], (err, dbRes) => {
                                     if (!err) {
-                                        database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                                            if (!err) {
+                                        
                                                 let websocketiedDelivery = delivered[res.locals.user];
-                                                websocketiedDelivery.name = dbRes.rows.find(y => y?.id === res.locals.user)?.name ?? "Deleted user";
+                                                websocketiedDelivery.name = userRows.find(y => y?.id === res.locals.user)?.name ?? "Deleted user";
                                                 websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
                                                     websocket.send(JSON.stringify({ event: 'deliveredActivity', id: activityId, user: res.locals.user, delivery: websocketiedDelivery }));
                                                 });
                                                 res.send({});
-                                            } else {
-                                                console.log(err);
-                                                res.status(500).send({ error: "Server error." });
-                                            }
-                                        });
                                     } else {
                                         console.log(err);
                                         res.status(500).send({ error: "Server error." });
@@ -336,6 +338,15 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 res.status(500).send({ error: "Server error." });
             }
         });
+    } else {
+        res.status(403).send({ error: "Not authorized." });
+    }
+
+    } else {
+        console.log(err);
+        res.status(500).send({ error: "Server error." });
+    }
+});
     });
 
     app.post('/activities/result/*/*', (req: express.Request, res: express.Response) => {

@@ -68,10 +68,10 @@ export default (app: express.Application, database: Client) => {
                             });
                             res.send(userPrivatelessPlusAvaliable);
                         } else {
-                            res.status(404).send({ error: "Not. found." });
+                            res.status(404).send({ error: "Not found." });
                         }
                     } else {
-                        res.status(500).send();
+                        res.status(500).send({});
                     }
                 });
             } else {

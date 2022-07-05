@@ -98,7 +98,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                             }));
                                         });
                                     });
-                                    res.status(200).send();
+                                    res.status(200).send({});
                                 } else {
                                     console.log(err);
                                     res.status(500).send({ error: "Server error." });
@@ -111,6 +111,9 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 } else {
                     res.status(403).send({ error: "Not authorized." });
                 }
+            } else {
+                console.log(err);
+                res.status(500).send({ error: "Server error." });
             }
         });
     });

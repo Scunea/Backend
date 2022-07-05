@@ -114,7 +114,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         }
                     });
                 } else {
-                    res.status(404).send({ error: "Not. found." });
+                    res.status(404).send({ error: "Not found." });
                 }
             } else {
                 console.log(err);

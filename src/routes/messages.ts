@@ -63,7 +63,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         const users = dbRes.rows;
                         database.query(`INSERT INTO messages (id, title, content, files, author, date, receiver, school) VALUES($1, $2, $3, $4, $5, $6, $7, $8)`, [message.id, message.title, !message.content?.pdf ? message.content : JSON.stringify(message.content), JSON.stringify(message.files), message.author, message.date.toString(), JSON.stringify(message.receiver), message.school], (err, dbRes) => {
                             if (!err) {
-                                let websocketiedMessage = { ...message };
+                                let websocketiedMessage = { ...message, pdf: message.content?.pdf };
                                 websocketiedMessage.receiver = websocketiedMessage.receiver.map((x: string) => { return { id: x, name: users.find(y => y?.id === x)?.name ?? "Deleted user" } });
                                 websocketiedMessage.author = { id: websocketiedMessage.author, name: users.find(y => y?.id === websocketiedMessage.author)?.name ?? "Deleted user" };
                                 message.receiver.filter(x => x !== message.author).forEach(receiver => {

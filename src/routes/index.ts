@@ -4,6 +4,7 @@ import * as jose from 'jose';
 import fs from 'fs';
 import { User } from '../interfaces';
 import morgan from 'morgan';
+import { transliterate } from 'transliteration';
 
 import login from './login';
 import info from './info';
@@ -22,7 +23,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             res.set('Content-Security-Policy', `Frame-Ancestors 'self' *`);
             res.set('Cross-Origin-Resource-Policy', `cross-origin`);
             if (res.req.query.name) {
-                res.set('Content-Disposition', `attachment; filename="${res.req.query.name}"`);
+                res.set('Content-Disposition', `attachment; filename="${transliterate(res.req.query.name.toString())}"`);
             }
         }
     }));
@@ -55,7 +56,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
     upload(app);
 
     app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-        res.status(404).send({ error: "Not. found." });
+        res.status(404).send({ error: "Not found." });
     });
 
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

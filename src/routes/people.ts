@@ -43,7 +43,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
     app.post('/people', async (req: express.Request, res: express.Response) => {
         if (req.body.id && req.body.name && req.body.password && req.body.type && (req.body.type === 'administrator' || (req.body.type === 'teacher' && req.body.subject) || req.body.type === 'student') || req.body.type === 'parent') {
             database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                if (!err) {
+                if (err) {
                     if (dbRes.rows.find(x => x.id === res.locals.user).administrator.includes(res.locals.school)) {
                         if (req.body.type !== 'parent' || (req.body.type === 'parent' && dbRes.rows.find(x => x.id === req.body.child))) {
                             const user = {
