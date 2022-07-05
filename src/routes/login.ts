@@ -14,7 +14,7 @@ export default (app: express.Application, database: Client, checkLogin: any) => 
                 if (!err) {
                     if (!dbRes.rows.find(x => x.email === req.body.email)) {
                         if (/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/.test(req.body.email)) {
-                            database.query(`INSERT INTO users (token, id, email, number, name, grades, password, administrator, teacher, parent, schools, pending) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, ['NEW', crypto.randomUUID(), req.body.email, '', req.body.name, '{}', await argon2.hash(req.body.password, { type: argon2.argon2id }), '[]', '{}', '{}', '[]', '[]'], (err, dbRes) => {
+                            database.query(`INSERT INTO users (token, id, email, number, tfa, name, grades, password, administrator, teacher, parent, schools, pending) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`, ['NEW', crypto.randomUUID(), req.body.email, '', '', req.body.name, '{}', await argon2.hash(req.body.password, { type: argon2.argon2id }), '[]', '{}', '{}', '[]', '[]'], (err, dbRes) => {
                                 if (!err) {
                                     res.send({});
                                 }

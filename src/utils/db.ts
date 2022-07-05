@@ -8,6 +8,7 @@ export default async (database: Client, logger: any) => {
         id text NOT NULL,
         email text NOT NULL,
         number text NOT NULL,
+        tfa text NOT NULL,
         name text NOT NULL,
         grades text NOT NULL,
         password text NOT NULL,
