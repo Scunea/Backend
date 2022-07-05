@@ -6,6 +6,8 @@ export default async (database: Client, logger: any) => {
     database.query(`CREATE TABLE IF NOT EXISTS users (
         token text NOT NULL,
         id text NOT NULL,
+        email text NOT NULL,
+        number text NOT NULL,
         name text NOT NULL,
         grades text NOT NULL,
         password text NOT NULL,
@@ -13,6 +15,7 @@ export default async (database: Client, logger: any) => {
         teacher text NOT NULL,
         parent text NOT NULL,
         schools text NOT NULL,
+        pending text NOT NULL,
         PRIMARY KEY (id)
     )`, (err, dbRes) => {
         if (err) {

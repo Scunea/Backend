@@ -230,52 +230,52 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             .filter((x) => {
                 return x !== '';
             })[0];
-            database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                if (!err) {
-                    if (!JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                        
-        database.query(`SELECT * FROM activities`, async (err, dbRes) => {
+        database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
-                const activity = dbRes.rows.find(x => x.id === activityId);
-                if (activity) {
-                    let viewed = JSON.parse(activity.viewed);
-                    if (!viewed[res.locals.user]) {
-                        viewed[res.locals.user] = true;
+                if (!JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
+
+                    database.query(`SELECT * FROM activities`, async (err, dbRes) => {
                         if (!err) {
-                            database.query(`UPDATE activities SET viewed = $1 WHERE id = $2`, [viewed, activityId], (err, dbRes) => {
-                                if (!err) {
-                                    websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
-                                        websocket.send(JSON.stringify({ event: 'viewedActivity', id: activityId, user: res.locals.user }));
-                                    });
-                                    res.send({});
+                            const activity = dbRes.rows.find(x => x.id === activityId);
+                            if (activity) {
+                                let viewed = JSON.parse(activity.viewed);
+                                if (!viewed[res.locals.user]) {
+                                    viewed[res.locals.user] = true;
+                                    if (!err) {
+                                        database.query(`UPDATE activities SET viewed = $1 WHERE id = $2`, [viewed, activityId], (err, dbRes) => {
+                                            if (!err) {
+                                                websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
+                                                    websocket.send(JSON.stringify({ event: 'viewedActivity', id: activityId, user: res.locals.user }));
+                                                });
+                                                res.send({});
+                                            } else {
+                                                console.log(err);
+                                                res.status(500).send({ error: "Server error." });
+                                            }
+                                        });
+                                    } else {
+                                        console.log(err);
+                                        res.status(500).send({ error: "Server error." });
+                                    }
                                 } else {
-                                    console.log(err);
-                                    res.status(500).send({ error: "Server error." });
+                                    res.status(400).send({ error: "Missing required argument." });
                                 }
-                            });
+                            } else {
+                                res.status(404).send({ error: "Not found." });
+                            }
                         } else {
                             console.log(err);
                             res.status(500).send({ error: "Server error." });
                         }
-                    } else {
-                        res.status(400).send({ error: "Missing required argument." });
-                    }
+                    });
                 } else {
-                    res.status(404).send({ error: "Not found." });
+                    res.status(403).send({ error: "Not authorized." });
                 }
             } else {
                 console.log(err);
                 res.status(500).send({ error: "Server error." });
             }
         });
-    } else {
-        res.status(403).send({ error: "Not authorized." });
-    }
-} else {
-    console.log(err);
-    res.status(500).send({ error: "Server error." });
-}
-            });
     });
 
     app.post('/activities/deliver/*', (req: express.Request, res: express.Response) => {
@@ -287,66 +287,66 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             .filter((x) => {
                 return x !== '';
             })[0];
-            database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                if (!err) {
-                    const userRows = dbRes.rows;
-                    if (!JSON.parse(userRows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(userRows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-        database.query(`SELECT * FROM activities`, async (err, dbRes) => {
+        database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
-                const activity = dbRes.rows.find(x => x.id === activityId);
-                if (activity) {
-                    if (activity.expiration === 'false' || Date.now() <= Number(activity.expiration)) {
-                        if (!JSON.parse(activity.result)[res.locals.user]) {
-                            if (!(req.body.files ?? []).map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
-                                let results = JSON.parse(activity.result);
-                                results[res.locals.user] = 'Unchecked';
+                const userRows = dbRes.rows;
+                if (!JSON.parse(userRows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(userRows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
+                    database.query(`SELECT * FROM activities`, async (err, dbRes) => {
+                        if (!err) {
+                            const activity = dbRes.rows.find(x => x.id === activityId);
+                            if (activity) {
+                                if (activity.expiration === 'false' || Date.now() <= Number(activity.expiration)) {
+                                    if (!JSON.parse(activity.result)[res.locals.user]) {
+                                        if (!(req.body.files ?? []).map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
+                                            let results = JSON.parse(activity.result);
+                                            results[res.locals.user] = 'Unchecked';
 
-                                let delivered = JSON.parse(activity.delivered);
-                                delivered[res.locals.user] = {
-                                    comments: req.body.comments ?? '',
-                                    files: req.body.files ?? [],
-                                    date: Date.now()
-                                };
-                                database.query(`UPDATE activities SET delivered = $1, result = $2 WHERE id = $3`, [JSON.stringify(delivered), JSON.stringify(results), activityId], (err, dbRes) => {
-                                    if (!err) {
-                                        
-                                                let websocketiedDelivery = delivered[res.locals.user];
-                                                websocketiedDelivery.name = userRows.find(y => y?.id === res.locals.user)?.name ?? "Deleted user";
-                                                websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
-                                                    websocket.send(JSON.stringify({ event: 'deliveredActivity', id: activityId, user: res.locals.user, delivery: websocketiedDelivery }));
-                                                });
-                                                res.send({});
+                                            let delivered = JSON.parse(activity.delivered);
+                                            delivered[res.locals.user] = {
+                                                comments: req.body.comments ?? '',
+                                                files: req.body.files ?? [],
+                                                date: Date.now()
+                                            };
+                                            database.query(`UPDATE activities SET delivered = $1, result = $2 WHERE id = $3`, [JSON.stringify(delivered), JSON.stringify(results), activityId], (err, dbRes) => {
+                                                if (!err) {
+
+                                                    let websocketiedDelivery = delivered[res.locals.user];
+                                                    websocketiedDelivery.name = userRows.find(y => y?.id === res.locals.user)?.name ?? "Deleted user";
+                                                    websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
+                                                        websocket.send(JSON.stringify({ event: 'deliveredActivity', id: activityId, user: res.locals.user, delivery: websocketiedDelivery }));
+                                                    });
+                                                    res.send({});
+                                                } else {
+                                                    console.log(err);
+                                                    res.status(500).send({ error: "Server error." });
+                                                }
+                                            });
+                                        } else {
+                                            res.status(400).send({})
+                                        }
                                     } else {
-                                        console.log(err);
-                                        res.status(500).send({ error: "Server error." });
+                                        res.status(403).send({ error: "Not authorized." });
                                     }
-                                });
+                                } else {
+                                    res.status(403).send({ error: "Not authorized." });
+                                }
                             } else {
-                                res.status(400).send({})
+                                res.status(404).send({})
                             }
                         } else {
-                            res.status(403).send({ error: "Not authorized." });
+                            console.log(err);
+                            res.status(500).send({ error: "Server error." });
                         }
-                    } else {
-                        res.status(403).send({ error: "Not authorized." });
-                    }
+                    });
                 } else {
-                    res.status(404).send({})
+                    res.status(403).send({ error: "Not authorized." });
                 }
+
             } else {
                 console.log(err);
                 res.status(500).send({ error: "Server error." });
             }
         });
-    } else {
-        res.status(403).send({ error: "Not authorized." });
-    }
-
-    } else {
-        console.log(err);
-        res.status(500).send({ error: "Server error." });
-    }
-});
     });
 
     app.post('/activities/result/*/*', (req: express.Request, res: express.Response) => {

@@ -11,6 +11,8 @@ import info from './info';
 import grades from './grades';
 import messages from './messages';
 import reports from './reports';
+import account from './account';
+import school from './school';
 import people from './people';
 import activities from './activities';
 import upload from './upload';
@@ -31,7 +33,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
     login(app, database, checkLogin);
 
     app.use(async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-        const user: User = await checkLogin(false, req.headers.authorization ?? '', typeof req.headers.school === 'string' ? req.headers.school ?? '' : '');
+        const user: User = await checkLogin(req.url.startsWith('/create') || req.url.startsWith('/join'), req.headers.authorization ?? '', typeof req.headers.school === 'string' ? req.headers.school ?? '' : '');
         if (user.id !== '') {
             res.locals.user = user.id;
             res.locals.school = req.headers.school;
@@ -48,6 +50,10 @@ export default (app: express.Application, database: Client, websockets: Map<stri
     messages(app, database, websockets);
 
     reports(app, database, websockets);
+
+    account(app, database, websockets);
+
+    school(app, database, websockets);
 
     people(app, database, websockets);
 
@@ -71,6 +77,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 token: '',
                 id: '',
                 name: '',
+                email: '',
+                number: '',
                 password: '',
                 administrator: [],
                 teacher: '',

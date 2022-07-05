@@ -1,14 +1,12 @@
 import express from "express";
 import { Client } from 'pg';
-import argon2 from 'argon2';
-import { User } from "interfaces";
 
 export default (app: express.Application, database: Client, websockets: Map<string, Map<string, WebSocket[]>>) => {
     app.get('/people', (req: express.Request, res: express.Response) => {
         database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
                 if (dbRes.rows.find(x => x.id === res.locals.user).administrator.includes(res.locals.school)) {
-                    const schoolUsers = dbRes.rows.filter(user => JSON.parse(user.schools).includes(res.locals.school));
+                    const schoolUsers = dbRes.rows.filter(user => JSON.parse(user.schools).includes(res.locals.school) || JSON.parse(user.pending).includes(res.locals.school));
                     res.send(schoolUsers.map(user => {
                         const child = schoolUsers.find(x => JSON.parse(x.parent)[res.locals.school]?.includes(user.id));
                         let fixedChild;
@@ -21,13 +19,15 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         return {
                             id: user.id,
                             name: user.name,
-                            type: JSON.parse(user.administrator).includes(res.locals.school) ?
+                            email: user.email,
+                            number: !JSON.parse(user.pending).includes(res.locals.school) ? user.number : 'Pending',
+                            type: !JSON.parse(user.pending).includes(res.locals.school) ? JSON.parse(user.administrator).includes(res.locals.school) ?
                                 'Administrator' : JSON.parse(user.teacher)[res.locals.school] ?
                                     'Teacher' : schoolUsers.find(x => JSON.parse(x.parent)[res.locals.school]?.includes(user.id)) ?
                                         'Parent' :
-                                        'Student',
-                            subject: JSON.parse(user.teacher)[res.locals.school],
-                            child: fixedChild
+                                        'Student' : 'Pending',
+                            subject: !JSON.parse(user.pending).includes(res.locals.school) ? JSON.parse(user.teacher)[res.locals.school] : 'Pending',
+                            child: !JSON.parse(user.pending).includes(res.locals.school) ? fixedChild : undefined
                         };
                     }));
                 } else {
@@ -40,91 +40,62 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         });
     });
 
-    app.post('/people', async (req: express.Request, res: express.Response) => {
-        if (req.body.id && req.body.name && req.body.password && req.body.type && (req.body.type === 'administrator' || (req.body.type === 'teacher' && req.body.subject) || req.body.type === 'student') || req.body.type === 'parent') {
+    app.put('/people', async (req: express.Request, res: express.Response) => {
+        if (req.body.email && req.body.type && (req.body.type === 'administrator' || (req.body.type === 'teacher' && req.body.subject) || req.body.type === 'student')) {
             database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                if (err) {
+                if (!err) {
                     if (dbRes.rows.find(x => x.id === res.locals.user).administrator.includes(res.locals.school)) {
-                        if (req.body.type !== 'parent' || (req.body.type === 'parent' && dbRes.rows.find(x => x.id === req.body.child))) {
-                            const user = {
-                                id: req.body.id,
-                                name: req.body.name,
-                                password: await argon2.hash(req.body.password, {
-                                    type: argon2.argon2id
-                                }),
-                                subject: req.body.subject,
-                                child: req.body.child,
-                                type: req.body.type
+                        const user = dbRes.rows.find(x => x.email === req.body.email);
+                        if (user) {
+                            let pending = JSON.parse(user.pending);
+                            pending.push(res.locals.school);
+                            user.pending = JSON.stringify(pending);
+
+                            if (req.body.type === 'administrator') {
+                                let administrator = JSON.parse(user.administrator);
+                                administrator.push(res.locals.school);
+                                user.administrator = JSON.stringify(administrator);
                             }
-                            database.query(`INSERT INTO users (token, id, name, grades, password, administrator, teacher, parent, schools) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`, ['NEW', user.id, user.name, '{}', user.password, (() => {
-                                if (user.type === 'administrator') {
-                                    return JSON.stringify([res.locals.school]);
-                                } else {
-                                    return '[]';
-                                }
-                            })(), (() => {
-                                if (user.type === 'teacher') {
-                                    return JSON.stringify({ [res.locals.school]: user.subject });
-                                } else {
-                                    return '[]';
-                                }
-                            })(), '[]', JSON.stringify([res.locals.school])], (err, dbResp) => {
+
+                            if (req.body.type === 'teacher') {
+                                let teacher = JSON.parse(user.teacher);
+                                teacher[res.locals.school] = req.body.subject;
+                                user.teacher = JSON.stringify(teacher);
+                            }
+
+                            database.query(`UPDATE users SET pending = $1, administrator = $2, teacher = $3, parent = $4 WHERE id = $5`, [user.pending, user.administrator, user.teacher, user.parent, user.id], (err, dbResp) => {
                                 if (!err) {
-
-                                    if (req.body.type === 'parent') {
-                                        let parents = JSON.parse(dbRes.rows.find(x => x.id === user.child).parent);
-                                        if (Array.isArray(parents[res.locals.school])) {
-                                            parents[res.locals.school].push(user.id);
-                                        } else {
-                                            parents[res.locals.school] = [user.id];
-                                        }
-
-                                        database.query(`UPDATE users SET parent = $1 WHERE id = $2`, [parents, user.child], (err, dbRes) => {
-                                            if (!err) {
-                                                dbRes.rows.forEach((userToSend: any) => {
-                                                    if (user.type === 'teacher' || JSON.parse(userToSend.administrator).includes(res.locals.school)) {
-                                                        websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
-                                                            websocket.send(JSON.stringify({ event: 'newUser', user: user }));
-                                                        });
+                                    dbRes.rows.forEach((userToSend: any) => {
+                                        if (JSON.parse(userToSend.administrator).includes(res.locals.school)) {
+                                            websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
+                                                websocket.send(JSON.stringify({
+                                                    event: 'newUser', user: {
+                                                        id: user.id,
+                                                        name: user.name,
+                                                        email: user.email,
+                                                        number: 'Pending',
+                                                        subject: 'Pending',
+                                                        type: 'Pending'
                                                     }
-                                                });
-                                                res.status(201).send({
-                                                    id: user.id,
-                                                    name: user.name,
-                                                    subject: user.subject,
-                                                    child: '',
-                                                    type: user.type
-                                                });
-                                            } else {
-                                                console.log(err);
-                                                res.status(500).send({ error: "Server error." });
-                                            }
-                                        });
-                                    } else {
-                                        dbRes.rows.forEach((userToSend: any) => {
-                                            if (user.type === 'teacher' || JSON.parse(userToSend.administrator).includes(res.locals.school)) {
-                                                websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
-                                                    let privaterisedUser: any = user;
-                                                    delete privaterisedUser.password;
-                                                    websocket.send(JSON.stringify({ event: 'newUser', user: privaterisedUser }));
-                                                });
-                                            }
-                                        });
-                                        res.status(201).send({
-                                            id: user.id,
-                                            name: user.name,
-                                            subject: user.subject,
-                                            child: '',
-                                            type: user.type
-                                        });
-                                    }
+                                                }));
+                                            });
+                                        }
+                                    });
+                                    websockets?.forEach(websocket => {
+                                        if (websocket.has(user.id)) {
+                                            websocket.get(user.id)?.forEach(websocket => {
+                                                websocket.send(JSON.stringify({ event: 'schoolInvite', schoolId: res.locals.school }));
+                                            });
+                                        }
+                                    })
+                                    res.send({});
                                 } else {
                                     console.log(err);
                                     res.status(500).send({ error: "Server error." });
                                 }
                             });
                         } else {
-                            res.status(403).send({ error: "Not authorized." });
+                            res.status(404).send({ error: "Not found." });
                         }
                     } else {
                         res.status(403).send({ error: "Not authorized." });
@@ -139,166 +110,81 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         }
     });
 
-    app.patch('/people', async (req: express.Request, res: express.Response) => {
-        if ((req.body.name || req.body.password)) {
-            database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                if (!err) {
-                    const user = dbRes.rows.find(x => x.id === res.locals.user);
-                    user.name = req.body.name;
-                    if (req.body.password) {
-                        user.password = await argon2.hash(req.body.password, { type: argon2.argon2id });
-                    }
-                    if (await argon2.verify(user.password, req.body.currentPassword ?? '', { type: argon2.argon2id })) {
-                        if (!user.administrator.includes(res.locals.school) && req.body.name) {
-                            res.status(403).send({ error: "Not authorized." });
-                            return;
-                        }
-                        database.query(`UPDATE users SET name = $1, password = $2 WHERE id = $3`, [user.name, user.password, user.id], (err, dbResp) => {
-                            if (!err) {
-                                dbRes.rows.forEach((userToSend: any) => {
-                                    if (JSON.parse(userToSend.administrator).includes(res.locals.school) || res.locals.user === user.id) {
-                                        const child = dbRes.rows.find(x => JSON.parse(x.parent)[res.locals.school]?.includes(user.id));
-                                        let fixedChild: { id: string; name: string; };
-                                        if (child) {
-                                            fixedChild = {
-                                                id: child.id,
-                                                name: child.name
-                                            }
-                                        }
-                                        websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
-                                            websocket.send(JSON.stringify({
-                                                event: 'editedUser', user: {
-                                                    id: user.id,
-                                                    name: user.name,
-                                                    subject: JSON.parse(user.teacher)[res.locals.school],
-                                                    child: fixedChild,
-                                                    type: JSON.parse(user.administrator).includes(res.locals.school) ?
-                                                        'Administrator' : JSON.parse(user.teacher)[res.locals.school] ?
-                                                            'Teacher' : dbRes.rows.find(x => JSON.parse(x.parent)[res.locals.school]?.includes(user.id)) ?
-                                                                'Parent' :
-                                                                'Student'
-                                                }
-                                            }));
-                                        });
-                                    }
-                                });
-                                res.send({});
-                            } else {
-                                console.log(err);
-                                res.status(500).send({ error: "Server error." });
-                            }
-                        });
-                    } else {
-                        res.status(401).send({ error: "Invalid credentials." });
-                    }
-                } else {
-                    console.log(err);
-                    res.status(500).send({ error: "Server error." });
-                }
-            });
-        } else {
-            res.status(400).send({ error: "Missing required argument." });
-        }
-    });
-
-    app.patch('/people/*', async (req: express.Request, res: express.Response) => {
-        const urlParamsValues: string[] = Object.values(req.params);
-        const userId = urlParamsValues
-            .map((x) => x.replace(/\//g, ''))
-            .filter((x) => {
-                return x !== '';
-            })[0];
-
-        if ((req.body.name || req.body.password || req.body.subject)) {
-            database.query(`SELECT * FROM users`, async (err, dbRes) => {
-                if (!err) {
-                    if (dbRes.rows.find(x => x.id === res.locals.user).administrator.includes(res.locals.school)) {
-
-                        const user = dbRes.rows.find(x => x.id === userId);
-                        if (user) {
-                            let teacher = JSON.parse(user.teacher);
-                            if (teacher[res.locals.school] && req.body.subject) {
-                                teacher[res.locals.school] = req.body.subject;
-                            }
-                            user.name = req.body.name;
-                            user.teacher = JSON.stringify(teacher);
-                            if (req.body.password) {
-                                user.password = await argon2.hash(req.body.password, { type: argon2.argon2id });
-                            }
-                            database.query(`UPDATE users SET name = $1, teacher = $2, password = $3 WHERE id = $4`, [user.name, user.teacher, user.password, user.id], (err, dbResp) => {
-                                if (!err) {
-                                    dbRes.rows.forEach((userToSend: any) => {
-                                        if (JSON.parse(user.teacher)[res.locals.school] || JSON.parse(userToSend.administrator).includes(res.locals.school)) {
-                                            const child = dbRes.rows.find(x => JSON.parse(x.parent)[res.locals.school]?.includes(user.id));
-                                            let fixedChild: { id: string; name: string; };
-                                            if (child) {
-                                                fixedChild = {
-                                                    id: child.id,
-                                                    name: child.name
-                                                }
-                                            }
-                                            websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
-                                                websocket.send(JSON.stringify({
-                                                    event: 'editedUser', user: {
-                                                        id: user.id,
-                                                        name: user.name,
-                                                        subject: JSON.parse(user.teacher)[res.locals.school],
-                                                        child: fixedChild,
-                                                        type: JSON.parse(user.administrator).includes(res.locals.school) ?
-                                                            'Administrator' : JSON.parse(user.teacher)[res.locals.school] ?
-                                                                'Teacher' : dbRes.rows.find(x => JSON.parse(x.parent)[res.locals.school]?.includes(user.id)) ?
-                                                                    'Parent' :
-                                                                    'Student'
-                                                    }
-                                                }));
-                                            });
-                                        }
-                                    });
-                                    res.send({});
-                                } else {
-                                    console.log(err);
-                                    res.status(500).send({ error: "Server error." });
-                                }
-                            });
-                        } else {
-                            res.status(404).send({ error: "Not found." });
-                        }
-                    } else {
-                        console.log(err);
-                        res.status(500).send({ error: "Server error." });
-                    }
-                } else {
-                    res.status(403).send({ error: "Not authorized." });
-                }
-            });
-        } else {
-            res.status(400).send({ error: "Missing required argument." });
-        }
-    });
-
     app.delete('/people', async (req: express.Request, res: express.Response) => {
         if (req.body.tos) {
             database.query(`SELECT * FROM users`, async (err, dbRes) => {
                 if (!err) {
                     if (dbRes.rows.find(x => x.id === res.locals.user).administrator.includes(res.locals.school)) {
                         const users = dbRes.rows.filter(x => req.body.tos.includes(x.id));
-                        database.query(`DELETE FROM users WHERE id = ANY($1)`, [users.map(x => x.id)], (err, dbResp) => {
+                        const parentsToDelete = users.filter(x => JSON.parse(x.parent)[res.locals.school]).map(x => JSON.parse(x.parent)[res.locals.school]).flat();
+
+                        database.query(`DELETE FROM users WHERE id = ANY($1)`, [parentsToDelete], (err, dbResp) => {
                             if (!err) {
-                                dbRes.rows.forEach((userToSend: any) => {
-                                    users.forEach(user => {
+                                parentsToDelete.forEach(parentId => {
+                                    dbRes.rows.forEach((userToSend: any) => {
+                                        if (JSON.parse(userToSend.administrator).includes(res.locals.school)) {
+                                            websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
+                                                websocket.send(JSON.stringify({ event: 'deletedUser', userId: parentId }));
+                                            });
+                                        }
+                                    });
+                                });
+                            }
+                        });
+
+                        const cleanedUsers = users.map(x => {
+                            let schools = JSON.parse(x.schools);
+                            schools.splice(schools.indexOf(res.locals.school));
+                            x.schools = JSON.stringify(schools);
+
+                            let pending = JSON.parse(x.pending);
+                            pending.splice(pending.indexOf(res.locals.school));
+                            x.pending = JSON.stringify(pending);
+
+                            let administrator = JSON.parse(x.administrator);
+                            if (administrator.includes(res.locals.school)) {
+                                administrator.splice(administrator.indexOf(res.locals.school));
+                            }
+                            x.administrator = JSON.stringify(administrator);
+
+                            let teacher = JSON.parse(x.teacher);
+                            if (teacher[res.locals.school]) {
+                                delete teacher[res.locals.school];
+                            }
+                            x.teacher = JSON.stringify(teacher);
+
+                            let parent = JSON.parse(x.parent);
+                            if (parent[res.locals.school]) {
+                                delete parent[res.locals.school];
+                            }
+                            x.parent = JSON.stringify(parent);
+
+                            let grades = JSON.parse(x.grades);
+                            if (grades[res.locals.school]) {
+                                delete grades[res.locals.school];
+                            }
+                            x.grades = JSON.stringify(grades);
+
+                            return x;
+                        });
+
+                        cleanedUsers.forEach(user => {
+                            database.query(`UPDATE users SET pending = $1, schools = $2, administrator = $3, teacher = $4, parent = $5, grades = $6 WHERE id = $7`, [user.pending, user.schools, user.administrator, user.teacher, user.parent, user.grades, user.id], (err, dbResp) => {
+                                if (!err) {
+                                    dbRes.rows.forEach((userToSend: any) => {
                                         if (JSON.parse(user.teacher)[res.locals.school] || JSON.parse(userToSend.administrator).includes(res.locals.school)) {
                                             websockets.get(res.locals.school)?.get(userToSend.id)?.forEach(websocket => {
                                                 websocket.send(JSON.stringify({ event: 'deletedUser', userId: user.id }));
                                             });
                                         }
                                     });
-                                });
-                                res.send({});
-                            } else {
-                                console.log(err);
-                                res.status(500).send({ error: "Server error." });
-                            }
+                                } else {
+                                    console.log(err);
+                                    res.status(500).send({ error: "Server error." });
+                                }
+                            });
                         });
+                        res.send({});
                     } else {
                         res.status(403).send({ error: "Not authorized." });
                     }

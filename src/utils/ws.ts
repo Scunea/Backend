@@ -31,6 +31,8 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, WebSoc
                 token: '',
                 id: '',
                 name: '',
+                email: '',
+                number: '',
                 password: '',
                 administrator: [],
                 teacher: '',

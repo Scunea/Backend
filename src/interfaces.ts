@@ -43,6 +43,8 @@ export interface User {
     token?: string;
     id: string;
     name: string;
+    email: string;
+    number: string;
     password?: string;
     administrator?: string[];
     teacher?: string;
@@ -51,6 +53,7 @@ export interface User {
     grades?: Grade[] | GradeStudent[] | Grade[][];
     avaliable: SimpleUser[];
     schools?: School[];
+    pending?: School[];
 };
 
 export interface File {
