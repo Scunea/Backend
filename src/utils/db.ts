@@ -7,16 +7,18 @@ export default async (database: Client, logger: any) => {
         token text NOT NULL,
         id text NOT NULL,
         email text NOT NULL,
-        number text NOT NULL,
+        verified boolean NOT NULL,
+        verificator text NOT NULL,
         tfa text NOT NULL,
         name text NOT NULL,
         grades text NOT NULL,
         password text NOT NULL,
         administrator text NOT NULL,
         teacher text NOT NULL,
-        parent text NOT NULL,
+        parents text NOT NULL,
+        pendingparents text NOT NULL,
         schools text NOT NULL,
-        pending text NOT NULL,
+        pendingschools text NOT NULL,
         PRIMARY KEY (id)
     )`, (err, dbRes) => {
         if (err) {

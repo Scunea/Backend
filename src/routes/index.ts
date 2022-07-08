@@ -12,12 +12,13 @@ import grades from './grades';
 import messages from './messages';
 import reports from './reports';
 import account from './account';
+import parents from './parents';
 import school from './school';
 import people from './people';
 import activities from './activities';
 import upload from './upload';
 
-export default (app: express.Application, database: Client, websockets: Map<string, Map<string, WebSocket[]>>) => {
+export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.use(morgan('combined'));
 
     app.use('/static', express.static(__dirname + '/../../files', {
@@ -53,6 +54,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
     account(app, database, websockets);
 
+    parents(app, database, websockets);
+
     school(app, database, websockets);
 
     people(app, database, websockets);
@@ -78,11 +81,11 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 id: '',
                 name: '',
                 email: '',
-                number: '',
                 password: '',
+                tfa: '',
                 administrator: [],
                 teacher: '',
-                parent: [],
+                parents: [],
                 grades: [],
                 avaliable: [],
                 schools: []

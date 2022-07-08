@@ -2,8 +2,13 @@ export interface SimpleUser {
     id: string;
     name: string;
     teacher: boolean;
-    child: string;
+    children: string[];
     type: string;
+};
+
+export interface Receiver {
+    id: string;
+    name: string;
 };
 
 export interface School {
@@ -44,16 +49,19 @@ export interface User {
     id: string;
     name: string;
     email: string;
-    number: string;
     password?: string;
+    verified?: boolean;
+    verificator?: string;
+    tfa: string | boolean;
     administrator?: string[];
     teacher?: string;
-    parent?: string[];
-    child?: string;
+    parents?: string[];
+    pendingparents?: string[];
+    children?: string[];
     grades?: Grade[] | GradeStudent[] | Grade[][];
     avaliable: SimpleUser[];
     schools?: School[];
-    pending?: School[];
+    pendingschools?: School[];
 };
 
 export interface File {

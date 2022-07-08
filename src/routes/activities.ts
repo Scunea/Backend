@@ -5,7 +5,7 @@ import { Client } from 'pg';
 import crypto from 'crypto';
 import fs from 'fs';
 
-export default (app: express.Application, database: Client, websockets: Map<string, Map<string, WebSocket[]>>) => {
+export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/activities', (req: express.Request, res: express.Response) => {
         database.query(`SELECT * FROM activities`, async (err, dbRes) => {
             if (!err) {
@@ -85,7 +85,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     websocketiedActivity.subject = JSON.parse(users.find(y => y?.id === websocketiedActivity.author).teacher)[res.locals.school];
                                     websocketiedActivity.author = { id: websocketiedActivity.author, name: users.find(y => y?.id === websocketiedActivity.author)?.name ?? "Deleted user" };
                                     [...activity.receiver, activity.author].forEach((receiver: string) => {
-                                        websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                        Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                             websocket.send(JSON.stringify({ event: 'newActivity', ...websocketiedActivity }));
                                         });
                                     });
@@ -142,12 +142,12 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                         database.query(`UPDATE activities SET title = $1, description = $2, files = $3, type = $4, delivery = $5, expiration = $6, receiver = $7 WHERE id = $8`, [newActivity.title, newActivity.description, JSON.stringify(newActivity.files), newActivity.type, newActivity.delivery, newActivity.expiration.toString(), JSON.stringify(newActivity.receiver), activityId], (err, dbRes) => {
                                             if (!err) {
                                                 [newActivity.receiver, oldActivity.author].forEach((receiver: string) => {
-                                                    websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                                    Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                                         websocket.send(JSON.stringify({ event: 'editedActivity', id: activityId, newActivity: newActivity }));
                                                     });
                                                 });
                                                 JSON.parse(oldActivity.receiver).filter((oldReceiver: string) => !newActivity.receiver.includes(oldReceiver)).forEach((oldReceiver: string) => {
-                                                    websockets.get(res.locals.school)?.get(oldReceiver)?.forEach(websocket => {
+                                                    Array.from(websockets.get(res.locals.school)?.get(oldReceiver)?.values() ?? [])?.forEach(websocket => {
                                                         websocket.send(JSON.stringify({ event: 'deletedActivity', id: activityId }));
                                                     });
                                                 });
@@ -198,7 +198,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                             database.query(`DELETE FROM activities WHERE id = $1`, [activityId], async (err, dbRes) => {
                                 if (!err) {
                                     [...JSON.parse(activity.receiver), activity.author].forEach((oldReceiver: string) => {
-                                        websockets.get(res.locals.school)?.get(oldReceiver)?.forEach(websocket => {
+                                        Array.from(websockets.get(res.locals.school)?.get(oldReceiver)?.values() ?? [])?.forEach(websocket => {
                                             websocket.send(JSON.stringify({ event: 'deletedActivity', id: activityId }));
                                         });
                                     });
@@ -244,7 +244,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     if (!err) {
                                         database.query(`UPDATE activities SET viewed = $1 WHERE id = $2`, [viewed, activityId], (err, dbRes) => {
                                             if (!err) {
-                                                websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
+                                                Array.from(websockets.get(res.locals.school)?.get(activity.author)?.values() ?? [])?.forEach(websocket => {
                                                     websocket.send(JSON.stringify({ event: 'viewedActivity', id: activityId, user: res.locals.user }));
                                                 });
                                                 res.send({});
@@ -312,7 +312,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
                                                     let websocketiedDelivery = delivered[res.locals.user];
                                                     websocketiedDelivery.name = userRows.find(y => y?.id === res.locals.user)?.name ?? "Deleted user";
-                                                    websockets.get(res.locals.school)?.get(activity.author)?.forEach(websocket => {
+                                                    Array.from(websockets.get(res.locals.school)?.get(activity.author)?.values() ?? [])?.forEach(websocket => {
                                                         websocket.send(JSON.stringify({ event: 'deliveredActivity', id: activityId, user: res.locals.user, delivery: websocketiedDelivery }));
                                                     });
                                                     res.send({});
@@ -369,7 +369,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
                         database.query(`UPDATE activities SET result = $1 WHERE id = $2`, [JSON.stringify(results), activityId], (err, dbRes) => {
                             if (!err) {
-                                websockets.get(res.locals.school)?.get(userId)?.forEach(websocket => {
+                                Array.from(websockets.get(res.locals.school)?.get(userId)?.values() ?? [])?.forEach(websocket => {
                                     websocket.send(JSON.stringify({ event: 'resultActivity', id: activityId, result: req.body.result }));
                                 });
                                 res.send({});

@@ -2,13 +2,13 @@ import express from "express";
 import { Grade, GradeParsed } from "interfaces";
 import { Client } from 'pg';
 
-export default (app: express.Application, database: Client, websockets: Map<string, Map<string, WebSocket[]>>) => {
+export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/grades', (req: express.Request, res: express.Response) => {
         database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
                 if (JSON.parse(user.teacher)[res.locals.school]) {
-                    const students = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school) && !JSON.parse(x.administrator).includes(res.locals.school) && !JSON.parse(x.teacher)[res.locals.school] && !dbRes.rows.find(y => JSON.parse(y.parent)[res.locals.school]?.includes(x.id)));
+                    const students = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school) && !JSON.parse(x.administrator).includes(res.locals.school) && !JSON.parse(x.teacher)[res.locals.school] && !dbRes.rows.find(y => JSON.parse(y.parents)?.includes(x.id)));
                     res.send(students.map(x => {
                         const xUser = (JSON.parse(x.grades)[res.locals.school] ?? {})[user.id];
                         return {
@@ -64,7 +64,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             if (!err) {
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
                 if ((JSON.parse(user.teacher)[res.locals.school] && !req.body.find((x: Grade) => x.subject !== JSON.parse(user.teacher)[res.locals.school])) || JSON.parse(user.administrator).includes(res.locals.school)) {
-                    const students = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school) && !JSON.parse(x.administrator).includes(res.locals.school) && !JSON.parse(x.teacher)[res.locals.school] && !dbRes.rows.find(y => JSON.parse(y.parent)[res.locals.school]?.includes(x.id)));
+                    const students = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school) && !JSON.parse(x.administrator).includes(res.locals.school) && !JSON.parse(x.teacher)[res.locals.school] && !dbRes.rows.find(y => JSON.parse(y.parents)?.includes(x.id)));
                     if (!students.some(x => !req.body.map((x: Grade) => x.id).includes(x.id)) || !req.body.map((x: Grade) => x.id).some((x: string) => !students.map(x => x.id).includes(x))) {
                         req.body.forEach((x: Grade) => {
                             const parsed: GradeParsed = {
@@ -82,7 +82,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                             database.query(`UPDATE users SET grades = $1 WHERE id = $2`, [extraParse, x.id], (err, dbReso) => {
                                 if (!err) {
                                     students.forEach(student => {
-                                        websockets.get(res.locals.school)?.get(student.id)?.forEach(websocket => {
+                                        Array.from(websockets.get(res.locals.school)?.get(student.id)?.values() ?? [])?.forEach(websocket => {
                                             const grades = JSON.parse(student.grades)[res.locals.school] ?? {};
                                             websocket.send(JSON.stringify({
                                                 event: 'newGrades', grades: Object.keys(grades).map(x => {

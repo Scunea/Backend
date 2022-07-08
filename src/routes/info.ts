@@ -15,12 +15,17 @@ export default (app: express.Application, database: Client) => {
                             const userPrivatelessPlusAvaliable: User = user;
                             delete userPrivatelessPlusAvaliable.token;
                             delete userPrivatelessPlusAvaliable.password;
+                            delete userPrivatelessPlusAvaliable.verified;
+                            delete userPrivatelessPlusAvaliable.verificator;
+                            userPrivatelessPlusAvaliable.tfa = Boolean(userPrivatelessPlusAvaliable.tfa);
                             delete userPrivatelessPlusAvaliable.schools;
-                            delete userPrivatelessPlusAvaliable.parent;
+                            delete userPrivatelessPlusAvaliable.pendingschools;
+                            delete userPrivatelessPlusAvaliable.parents;
+                            delete userPrivatelessPlusAvaliable.pendingparents;
                             userPrivatelessPlusAvaliable.administrator = JSON.parse(user.administrator).includes(res.locals.school) ?? '';
                             userPrivatelessPlusAvaliable.teacher = JSON.parse(user.teacher)[res.locals.school] ?? '';
-                            userPrivatelessPlusAvaliable.child = userRows.find(x => (JSON.parse(x.parent)[res.locals.school] ?? []).includes(res.locals.user))?.id;
-                            if (!userPrivatelessPlusAvaliable.administrator && !userPrivatelessPlusAvaliable.teacher && userPrivatelessPlusAvaliable.child) {
+                            userPrivatelessPlusAvaliable.children = userRows.filter(x => JSON.parse(x.parents).includes(res.locals.user))?.map(x => x.id);
+                            if (!userPrivatelessPlusAvaliable.administrator && !userPrivatelessPlusAvaliable.teacher && userPrivatelessPlusAvaliable.children.length < 1) {
                                 const grades = JSON.parse(user.grades)[res.locals.school] ?? {};
                                 userPrivatelessPlusAvaliable.grades = Object.keys(grades).map(x => {
                                     return {
@@ -32,12 +37,13 @@ export default (app: express.Application, database: Client) => {
                                         final: grades[x].final
                                     }
                                 });
-                            } else if (userPrivatelessPlusAvaliable.child) {
-                                const grades = JSON.parse(userRows.find(y => y.id === userPrivatelessPlusAvaliable.child).grades)[res.locals.school] ?? {};
-                                userPrivatelessPlusAvaliable.grades = Object.keys(grades).map(z => {
+                            } else if (userPrivatelessPlusAvaliable.children.length > 0) {
+                                userPrivatelessPlusAvaliable.grades = userPrivatelessPlusAvaliable.children.map(child => {
+                                const grades = JSON.parse(userRows.find(y => y.id === child).grades)[res.locals.school] ?? {};
+                                return Object.keys(grades).map(z => {
                                     return {
-                                        id: userPrivatelessPlusAvaliable.child,
-                                        fullName: userRows.find(y => y.id === userPrivatelessPlusAvaliable.child).name,
+                                        id: child,
+                                        fullName: userRows.find(y => y.id === child).name,
                                         subject: JSON.parse(userRows.find(y => y.id === z).teacher)[res.locals.school],
                                         deliberation: grades[z].deliberation,
                                         conceptual: grades[z].conceptual,
@@ -46,12 +52,13 @@ export default (app: express.Application, database: Client) => {
                                         final: grades[z].final
                                     }
                                 });
+                            }).flat();
                             } else {
                                 userPrivatelessPlusAvaliable.grades = [];
                             }
                             let avaliableUsers = userRows.filter(x => JSON.parse(x.schools).includes(res.locals.school));
                             if (!JSON.parse(userRows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(userRows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                                avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school]);
+                                avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
                             }
                             userPrivatelessPlusAvaliable.avaliable = avaliableUsers.map(x => x.id).map(x => {
                                 return {
@@ -59,11 +66,11 @@ export default (app: express.Application, database: Client) => {
                                     name: userRows.find(y => y.id === x).name,
                                     type: JSON.parse(userRows.find(y => y.id === x).administrator).includes(res.locals.school) ?
                                         'Administrator' : JSON.parse(userRows.find(y => y.id === x).teacher)[res.locals.school] ?
-                                            'Teacher' : userRows.find(y => JSON.parse(y.parent)[res.locals.school]?.includes(x)) ?
+                                            'Teacher' : userRows.find(y => JSON.parse(y.schools).includes(res.locals.school) &&  JSON.parse(y.parents)?.includes(x)) ?
                                                 'Parent' :
                                                 'Student',
                                     teacher: JSON.parse(userRows.find(y => y.id === x).teacher)[res.locals.school],
-                                    child: userRows.find(x => (JSON.parse(x.parent)[res.locals.school] ?? []).includes(x))?.id
+                                    children: userRows.filter(x => JSON.parse(x.parents).includes(x))?.map(x => x.id)
                                 };
                             });
                             res.send(userPrivatelessPlusAvaliable);

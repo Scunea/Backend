@@ -4,8 +4,9 @@ import { User } from '../interfaces';
 import { Client } from 'pg';
 import * as jose from 'jose';
 import fs from 'fs';
+import crypto from 'crypto';
 
-export default (wss: WebSocketServer, websockets: Map<string, Map<string, WebSocket[]>>, server: Server, database: Client) => {
+export default (wss: WebSocketServer, websockets: Map<string, Map<string, Map<string, WebSocket>>>, server: Server, database: Client) => {
     server.on('upgrade', async (request, socket, head) => {
         const url = new URL(request.url ?? '/', `http://${request.headers.host}`);
         const pathname = url.pathname;
@@ -15,10 +16,33 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, WebSoc
         if (pathname === '/socket' && user.id != '') {
             wss.handleUpgrade(request, socket, head, (ws) => {
                 let finalMap = websockets.get(school) ?? new Map();
-                let websocketForThis = finalMap?.get(user.id) ?? [];
-                websocketForThis.push(ws);
+                let websocketForThis = finalMap?.get(user.id) ?? new Map();
+                const uuid = crypto.randomUUID();
+                websocketForThis.set(uuid, ws);
                 finalMap?.set(user.id, websocketForThis);
                 websockets.set(school, finalMap);
+
+                function close() {
+                    socket.destroy();
+                    let finalMap = websockets.get(school) ?? new Map();
+                    let websocketForThis = finalMap?.get(user.id) ?? new Map();
+                    websocketForThis.delete(uuid);
+                    finalMap?.set(user.id, websocketForThis);
+                    websockets.set(school, finalMap);
+                }
+
+                let closer = setTimeout(close, 10000);
+
+                ws.send('Ping!');
+                ws.onmessage = (event) => {
+                    if(event.data === 'Pong!') {
+                        clearTimeout(closer);
+                        setTimeout(() => {
+                            ws.send('Ping!');
+                            closer = setTimeout(close, 10000);
+                        }, 2000);
+                    }
+                }
             });
         } else {
             socket.destroy();
@@ -32,11 +56,11 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, WebSoc
                 id: '',
                 name: '',
                 email: '',
-                number: '',
                 password: '',
+                tfa: '',
                 administrator: [],
                 teacher: '',
-                parent: [],
+                parents: [],
                 grades: [],
                 avaliable: [],
                 schools: []

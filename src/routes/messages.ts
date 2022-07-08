@@ -1,11 +1,11 @@
-import { File } from '../interfaces';
+import { File, Receiver } from '../interfaces';
 
 import express from "express";
 import { Client } from 'pg';
 import crypto from 'crypto';
 import fs from 'fs';
 
-export default (app: express.Application, database: Client, websockets: Map<string, Map<string, WebSocket[]>>) => {
+export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/messages', (req: express.Request, res: express.Response) => {
         database.query(`SELECT * FROM messages`, async (err, dbRes) => {
             if (!err) {
@@ -13,7 +13,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 database.query(`SELECT * FROM users`, async (err, dbRes) => {
                     if (!err) {
                         if (!JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                            messages = messages.filter(x => x.receiver.includes(res.locals.user));
+                            messages = messages.filter(x => x.receiver.includes(res.locals.user) || x.author === res.locals.user);
                         }
                         res.send(messages.map(x => {
                             try {
@@ -22,7 +22,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                 x.pdf = pdf.pdf;
                             } catch { }
                             x.files = JSON.parse(x.files);
-                            x.receiver = JSON.parse(x.receiver).filter((x: string) => x !== res.locals.user).map((x: string) => { return { id: x, name: dbRes.rows.find(y => y?.id === x)?.name ?? "Deleted user" } });
+                            x.receiver = JSON.parse(x.receiver).map((x: string) => { return { id: x, name: dbRes.rows.find(y => y?.id === x)?.name ?? "Deleted user" } });
                             x.author = { id: x.author, name: dbRes.rows.find(y => y?.id === x.author)?.name ?? "Deleted user" };
                             x.date = Number(x.date);
                             delete x.school;
@@ -49,15 +49,17 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             files: req.body.files ?? [],
             author: res.locals.user,
             date: Date.now(),
-            receiver: [...req.body.receiver.filter((x: string) => x !== res.locals.user), res.locals.user] ?? [],
+            receiver: req.body.receiver ?? [],
             school: res.locals.school
         };
         database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
-                let avaliableUsers = dbRes.rows.map(x => x.id);
-                if (!JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school]) {
-                    avaliableUsers = avaliableUsers.filter(x => x.teacher);
+                let avaliableUsers = dbRes.rows;
+                const user = dbRes.rows.find(x => x.id === res.locals.user);
+                if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator)[res.locals.school]) {
+                    avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
                 }
+                avaliableUsers = avaliableUsers.map(x => x.id);
                 if (!message.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                     if (message.title && message.content && message.receiver.length > 0 && !message.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
                         const users = dbRes.rows;
@@ -66,13 +68,12 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                 let websocketiedMessage = { ...message, pdf: message.content?.pdf };
                                 websocketiedMessage.receiver = websocketiedMessage.receiver.map((x: string) => { return { id: x, name: users.find(y => y?.id === x)?.name ?? "Deleted user" } });
                                 websocketiedMessage.author = { id: websocketiedMessage.author, name: users.find(y => y?.id === websocketiedMessage.author)?.name ?? "Deleted user" };
-                                message.receiver.filter(x => x !== message.author).forEach(receiver => {
-                                    websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                message.receiver.forEach((receiver: string) => {
+                                    Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                         websocket.send(JSON.stringify({ event: 'newMessage', ...websocketiedMessage }));
                                     });
                                 });
-                                websocketiedMessage.receiver = websocketiedMessage.receiver.filter(x => x.id !== message.author);
-                                websockets.get(res.locals.school)?.get(message.author)?.forEach(websocket => {
+                                Array.from(websockets.get(res.locals.school)?.get(message.author)?.values() ?? [])?.forEach(websocket => {
                                     websocket.send(JSON.stringify({ event: 'newMessage', ...websocketiedMessage }));
                                 });
                                 res.status(201).send({});
@@ -117,15 +118,17 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                     title: req.body.title,
                     content: pdf ? oldMessage.content : req.body.content,
                     files: req.body.files ?? [],
-                    receiver: [...req.body.receiver.filter((x: string) => x !== res.locals.user), res.locals.user] ?? []
+                    receiver: req.body.receiver ?? []
                 };
                 database.query(`SELECT * FROM users`, async (err, dbResu) => {
                     if (!err) {
                         if (oldMessage?.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                            let avaliableUsers = dbRes.rows.map(x => x.id);
-                            if (!JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school]) {
-                                avaliableUsers = avaliableUsers.filter(x => x.teacher);
-                            }
+                            let avaliableUsers = dbRes.rows;
+                            const user = dbRes.rows.find(x => x.id === res.locals.user);
+                            if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator)[res.locals.school]) {
+                                avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
+                }
+                avaliableUsers = avaliableUsers.map(x => x.id);
                             if (!newMessage.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                                 if (newMessage.title && (oldMessage.pdf || newMessage.content) && newMessage.receiver.length > 0 && !newMessage.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
                                     const users = dbRes.rows;
@@ -133,13 +136,13 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                         if (!err) {
                                             let websocketiedMessage = { ...newMessage };
                                             websocketiedMessage.receiver = websocketiedMessage.receiver.map((x: string) => { return { id: x, name: users.find(y => y?.id === x)?.name ?? "Deleted user" } });
-                                            newMessage.receiver.forEach(receiver => {
-                                                websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                            newMessage.receiver.forEach((receiver: string) => {
+                                                Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                                     websocket.send(JSON.stringify({ event: 'editedMessage', id: messageId, newMessage: websocketiedMessage }));
                                                 });
                                             });
                                             JSON.parse(oldMessage.receiver).filter((oldReceiver: string) => !newMessage.receiver.includes(oldReceiver)).forEach((oldReceiver: string) => {
-                                                websockets.get(res.locals.school)?.get(oldReceiver)?.forEach(websocket => {
+                                                Array.from(websockets.get(res.locals.school)?.get(oldReceiver)?.values() ?? [])?.forEach(websocket => {
                                                     websocket.send(JSON.stringify({ event: 'deletedMessage', id: messageId }));
                                                 });
                                             });
@@ -188,7 +191,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                             database.query(`DELETE FROM messages WHERE id = $1`, [messageId], async (err, dbRes) => {
                                 if (!err) {
                                     JSON.parse(message.receiver).forEach((oldReceiver: string) => {
-                                        websockets.get(res.locals.school)?.get(oldReceiver)?.forEach(websocket => {
+                                        Array.from(websockets.get(res.locals.school)?.get(oldReceiver)?.values() ?? [])?.forEach(websocket => {
                                             websocket.send(JSON.stringify({ event: 'deletedMessage', id: messageId }));
                                         });
                                     });

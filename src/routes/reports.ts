@@ -3,7 +3,7 @@ import { Client } from 'pg';
 import crypto from 'crypto';
 import fs from 'fs';
 
-export default (app: express.Application, database: Client, websockets: Map<string, Map<string, WebSocket[]>>) => {
+export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/reports', (req: express.Request, res: express.Response) => {
         database.query(`SELECT * FROM reports`, async (err, dbRes) => {
             if (!err) {
@@ -49,7 +49,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                 let websocketiedReport = { ...report };
                                 websocketiedReport.author = { id: websocketiedReport.author, name: users.find(y => y?.id === websocketiedReport.author)?.name ?? "Deleted user" };
                                 users.map(x => x.id).forEach(receiver => {
-                                    websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                    Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                         websocket.send(JSON.stringify({ event: 'newReport', ...websocketiedReport }));
                                     });
                                 });
@@ -92,7 +92,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     database.query(`UPDATE reports SET title = $1 WHERE id = $2`, [req.body.title, reportId], (err, dbRes) => {
                                         if (!err) {
                                             users.map(x => x.id).forEach(receiver => {
-                                                websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                                Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                                     websocket.send(JSON.stringify({ event: 'editedReport', id: reportId, newTitle: req.body.title }));
                                                 });
                                             });
@@ -138,7 +138,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                     database.query(`DELETE FROM reports WHERE id = $1`, [reportId], async (err, dbRes) => {
                         if (!err) {
                             users.map(x => x.id).forEach(receiver => {
-                                websockets.get(res.locals.school)?.get(receiver)?.forEach(websocket => {
+                                Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                     websocket.send(JSON.stringify({ event: 'deletedReport', id: reportId }));
                                 });
                             });
