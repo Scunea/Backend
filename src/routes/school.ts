@@ -1,8 +1,40 @@
 import express from "express";
 import { Client } from 'pg';
 import crypto from 'crypto';
+import fs from 'fs';
 
 export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
+    app.patch('/school', async (req: express.Request, res: express.Response) => {
+        database.query(`SELECT * FROM users`, async (err, dbRes) => {
+            if (!err) {
+                if (JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
+                    if (req.body.name || (req.body.logo && (req.body.logo === '' || fs.readdirSync(__dirname + '/../../files').includes(req.body.logo)))) {
+                        database.query(`UPDATE schools SET name = $1, logo = $2 WHERE id = $3`, [req.body.name, req.body.logo, res.locals.school], (err, dbResp) => {
+                            if (!err) {
+                                dbRes.rows.map(x => x.id).forEach((receiver: string) => {
+                                    Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
+                                        websocket.send(JSON.stringify({ event: 'editedSchool', name: req.body.name, logo: req.body.logo }));
+                                    });
+                                });
+                                res.send({});
+                            } else {
+                                console.log(err);
+                                res.status(500).send({ error: "Server error." });
+                            }
+                        });
+                    } else {
+                        res.status(400).send({ error: "Missing required argument." });
+                    }
+                } else {
+                    res.status(401).send({ error: "Not authorized." });
+                }
+            } else {
+                console.log(err);
+                res.status(500).send({ error: "Server error." });
+            }
+        });
+    });
+
     app.post('/create', async (req: express.Request, res: express.Response) => {
         if (req.body.name) {
             const uuid = crypto.randomUUID();
@@ -82,10 +114,10 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                                     subject: JSON.parse(user.teacher)[schoolId],
                                                     children: dbRes.rows.filter(x => JSON.parse(x.parents).includes(user.id))?.map(x => x.id),
                                                     type: JSON.parse(dbRes.rows.find(y => y.id === user.id).administrator).includes(schoolId) ?
-                                                    'Administrator' : JSON.parse(dbRes.rows.find(y => y.id === user.id).teacher)[schoolId] ?
-                                                        'Teacher' : dbRes.rows.find(y => JSON.parse(y.schools).includes(schoolId) &&  JSON.parse(y.parents)?.includes(user.id)) ?
-                                                            'Parent' :
-                                                            'Student',
+                                                        'Administrator' : JSON.parse(dbRes.rows.find(y => y.id === user.id).teacher)[schoolId] ?
+                                                            'Teacher' : dbRes.rows.find(y => JSON.parse(y.schools).includes(schoolId) && JSON.parse(y.parents)?.includes(user.id)) ?
+                                                                'Parent' :
+                                                                'Student',
                                                 }
                                             }));
                                         });

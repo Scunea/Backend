@@ -17,7 +17,7 @@ export default (app: express.Application) => {
             const preparedResponse = uuids.map(uuid => {
                 return {
                     id: uuid,
-                    url: req.protocol + '://' + req.get('host') + '/static/' + uuid // The way I'm getting the URl isn't good
+                    url: req.protocol + '://' + req.get('host') + '/static/' + uuid
                 }
             });
             res.status(201).send(!req.headers.simple ? preparedResponse : preparedResponse[0]);

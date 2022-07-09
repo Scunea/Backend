@@ -26,9 +26,22 @@ export default async (database: Client, logger: any) => {
         }
     });
 
+    database.query(`CREATE TABLE IF NOT EXISTS notifications (
+        endpoint text NOT NULL,
+        p256dh text NOT NULL,
+        auth text NOT NULL,
+        id text NOT NULL,
+        PRIMARY KEY (endpoint)
+    )`, (err, dbRes) => {
+        if (err) {
+            logger.fatal('Something went terribly wrong initializing.');
+        }
+    });
+
     database.query(`CREATE TABLE IF NOT EXISTS schools (
         id text NOT NULL,
         name text NOT NULL,
+        logo text NOT NULL,
         PRIMARY KEY (id)
     )`, (err, dbRes) => {
         if (err) {

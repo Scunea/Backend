@@ -2,6 +2,7 @@ import express from "express";
 import { Client } from 'pg';
 import crypto from 'crypto';
 import fs from 'fs';
+import webpush from 'web-push';
 
 export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/reports', (req: express.Request, res: express.Response) => {
@@ -48,11 +49,32 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                             if (!err) {
                                 let websocketiedReport = { ...report };
                                 websocketiedReport.author = { id: websocketiedReport.author, name: users.find(y => y?.id === websocketiedReport.author)?.name ?? "Deleted user" };
-                                users.map(x => x.id).forEach(receiver => {
+
+                                const receivers = users.map(x => x.id);
+                                receivers.forEach(receiver => {
                                     Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                         websocket.send(JSON.stringify({ event: 'newReport', ...websocketiedReport }));
                                     });
                                 });
+
+                                database.query(`SELECT * FROM notifications`, async (err, dbRes) => {
+                                    if (!err) {
+                                        dbRes.rows.filter(x => receivers.includes(x.id)).forEach(row => {
+                                            webpush.sendNotification({
+                                                endpoint: row.endpoint,
+                                                keys: {
+                                                    p256dh: row.p256dh,
+                                                    auth: row.auth
+                                                }
+                                            }, JSON.stringify({ event: 'newReport', ...websocketiedReport })).catch(err => {
+                                                if (err.statusCode === 404 || err.statusCode === 410) {
+                                                    database.query(`DELETE FROM notifications WHERE endpoint = $1`, [row.endpoint], async (err, dbRes) => { });
+                                                }
+                                            });
+                                        });
+                                    }
+                                });
+
                                 res.status(201).send({});
                             } else {
                                 console.log(err);

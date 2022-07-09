@@ -6,6 +6,8 @@ import app from './app';
 import config from './utils/config';
 import { createLogger } from './utils/logger';
 
+import keygen from './utils/keygen';
+import vapid from './utils/vapid';
 import ws from './utils/ws';
 import routes from './routes';
 import db from './utils/db';
@@ -23,6 +25,10 @@ const logger = createLogger(config.env === 'development');
 const server = createServer(app);
 
 const websockets = new Map();
+
+keygen(logger);
+
+vapid(config.vapid);
 
 ws(wss, websockets, server, database);
 

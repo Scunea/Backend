@@ -10,13 +10,13 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                     const schoolUsers = dbRes.rows.filter(user => JSON.parse(user.schools).includes(res.locals.school) || JSON.parse(user.pendingschools).includes(res.locals.school));
                     res.send(schoolUsers.map(user => {
                         const children = dbRes.rows.filter(x => JSON.parse(x.parents)?.includes(user.id));
-                                        const fixedChildren = children.map((child: User) => {
-                                            return {
-                                                id: child.id,
-                                                name: child.name
-                                            }
-                                        });
-                                        
+                        const fixedChildren = children.map((child: User) => {
+                            return {
+                                id: child.id,
+                                name: child.name
+                            }
+                        });
+
                         return {
                             id: user.id,
                             name: user.name,
@@ -118,13 +118,13 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
                         const cleanedUsers = users.map(x => {
                             let schools = JSON.parse(x.schools);
-                            if(schools.includes(res.locals.school)) {
+                            if (schools.includes(res.locals.school)) {
                                 schools.splice(schools.indexOf(res.locals.school), 1);
                             }
                             x.schools = JSON.stringify(schools);
 
                             let pendingschools = JSON.parse(x.pendingschools);
-                            if(pendingschools.includes(res.locals.school)) {
+                            if (pendingschools.includes(res.locals.school)) {
                                 pendingschools.splice(pendingschools.indexOf(res.locals.school), 1);
                             }
                             x.pendingschools = JSON.stringify(pendingschools);

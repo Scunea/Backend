@@ -14,6 +14,7 @@ export interface Receiver {
 export interface School {
     id: string;
     name: string;
+    logo: string;
 };
 
 export interface Grade {
@@ -48,6 +49,8 @@ export interface User {
     token?: string;
     id: string;
     name: string;
+    schoolName: string;
+    schoolLogo?: string;
     email: string;
     password?: string;
     verified?: boolean;

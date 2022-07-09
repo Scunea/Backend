@@ -22,7 +22,7 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, Map<st
                 finalMap?.set(user.id, websocketForThis);
                 websockets.set(school, finalMap);
 
-                function close() {
+                async function close() {
                     socket.destroy();
                     let finalMap = websockets.get(school) ?? new Map();
                     let websocketForThis = finalMap?.get(user.id) ?? new Map();
@@ -31,18 +31,20 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, Map<st
                     websockets.set(school, finalMap);
                 }
 
-                let closer = setTimeout(close, 10000);
+                (async () => {
+                    let closer = setTimeout(close, 10000);
 
-                ws.send('Ping!');
-                ws.onmessage = (event) => {
-                    if(event.data === 'Pong!') {
-                        clearTimeout(closer);
-                        setTimeout(() => {
-                            ws.send('Ping!');
-                            closer = setTimeout(close, 10000);
-                        }, 2000);
+                    ws.send('Ping!');
+                    ws.onmessage = (event) => {
+                        if (event.data === 'Pong!') {
+                            clearTimeout(closer);
+                            setTimeout(() => {
+                                ws.send('Ping!');
+                                closer = setTimeout(close, 10000);
+                            }, 2000);
+                        }
                     }
-                }
+                })();
             });
         } else {
             socket.destroy();
@@ -55,6 +57,7 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, Map<st
                 token: '',
                 id: '',
                 name: '',
+                schoolName: '',
                 email: '',
                 password: '',
                 tfa: '',
@@ -77,8 +80,8 @@ export default (wss: WebSocketServer, websockets: Map<string, Map<string, Map<st
                             const ecPublicKey = await jose.importSPKI(fs.readFileSync(__dirname + '/../../public.key').toString(), 'ES256');
 
                             const info = await jose.jwtVerify(token.split('Bearer ')[1], ecPublicKey, {
-                                issuer: 'school',
-                                audience: 'school'
+                                issuer: 'scunea',
+                                audience: 'scunea'
                             });
                             resolve(res.rows.find(x => x.token === token));
 

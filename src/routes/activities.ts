@@ -4,6 +4,7 @@ import express from "express";
 import { Client } from 'pg';
 import crypto from 'crypto';
 import fs from 'fs';
+import webpush from 'web-push';
 
 export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/activities', (req: express.Request, res: express.Response) => {
@@ -84,10 +85,30 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     let websocketiedActivity: any = { ...activity };
                                     websocketiedActivity.subject = JSON.parse(users.find(y => y?.id === websocketiedActivity.author).teacher)[res.locals.school];
                                     websocketiedActivity.author = { id: websocketiedActivity.author, name: users.find(y => y?.id === websocketiedActivity.author)?.name ?? "Deleted user" };
-                                    [...activity.receiver, activity.author].forEach((receiver: string) => {
+
+                                    const receivers = users.filter(x => JSON.parse(x.administrator).includes(res.locals.school)).map(x => x.id).concat([...activity.receiver, activity.author]);
+                                    receivers.forEach((receiver: string) => {
                                         Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                             websocket.send(JSON.stringify({ event: 'newActivity', ...websocketiedActivity }));
                                         });
+                                    });
+
+                                    database.query(`SELECT * FROM notifications`, async (err, dbRes) => {
+                                        if (!err) {
+                                            dbRes.rows.filter(x => receivers.includes(x.id)).forEach(row => {
+                                                webpush.sendNotification({
+                                                    endpoint: row.endpoint,
+                                                    keys: {
+                                                        p256dh: row.p256dh,
+                                                        auth: row.auth
+                                                    }
+                                                }, JSON.stringify({ event: 'newActivity', ...websocketiedActivity })).catch(err => {
+                                                    if (err.statusCode === 404 || err.statusCode === 410) {
+                                                        database.query(`DELETE FROM notifications WHERE endpoint = $1`, [row.endpoint], async (err, dbRes) => { });
+                                                    }
+                                                });
+                                            });
+                                        }
                                     });
                                     res.status(201).send({});
                                 } else {
@@ -141,7 +162,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     if (newActivity.title && newActivity.receiver.length > 0 && !newActivity.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
                                         database.query(`UPDATE activities SET title = $1, description = $2, files = $3, type = $4, delivery = $5, expiration = $6, receiver = $7 WHERE id = $8`, [newActivity.title, newActivity.description, JSON.stringify(newActivity.files), newActivity.type, newActivity.delivery, newActivity.expiration.toString(), JSON.stringify(newActivity.receiver), activityId], (err, dbRes) => {
                                             if (!err) {
-                                                [newActivity.receiver, oldActivity.author].forEach((receiver: string) => {
+                                                dbResu.rows.filter(x => JSON.parse(x.administrator).includes(res.locals.school)).map(x => x.id).concat([...newActivity.receiver, oldActivity.author]).forEach((receiver: string) => {
                                                     Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
                                                         websocket.send(JSON.stringify({ event: 'editedActivity', id: activityId, newActivity: newActivity }));
                                                     });
@@ -197,7 +218,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         if (activity.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
                             database.query(`DELETE FROM activities WHERE id = $1`, [activityId], async (err, dbRes) => {
                                 if (!err) {
-                                    [...JSON.parse(activity.receiver), activity.author].forEach((oldReceiver: string) => {
+                                    dbResu.rows.filter(x => JSON.parse(x.administrator).includes(res.locals.school)).map(x => x.id).concat([...JSON.parse(activity.receiver), activity.author]).forEach((oldReceiver: string) => {
                                         Array.from(websockets.get(res.locals.school)?.get(oldReceiver)?.values() ?? [])?.forEach(websocket => {
                                             websocket.send(JSON.stringify({ event: 'deletedActivity', id: activityId }));
                                         });

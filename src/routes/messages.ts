@@ -4,6 +4,7 @@ import express from "express";
 import { Client } from 'pg';
 import crypto from 'crypto';
 import fs from 'fs';
+import webpush from 'web-push';
 
 export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/messages', (req: express.Request, res: express.Response) => {
@@ -54,12 +55,12 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         };
         database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
-                let avaliableUsers = dbRes.rows;
+                let avaliableUsers = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school));
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
-                if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator)[res.locals.school]) {
+                if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator).includes(res.locals.school)) {
                     avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
                 }
-                avaliableUsers = avaliableUsers.map(x => x.id);
+                avaliableUsers = avaliableUsers.filter(x => x.id !== res.locals.user).map(x => x.id);
                 if (!message.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                     if (message.title && message.content && message.receiver.length > 0 && !message.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
                         const users = dbRes.rows;
@@ -73,6 +74,25 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                         websocket.send(JSON.stringify({ event: 'newMessage', ...websocketiedMessage }));
                                     });
                                 });
+
+                                database.query(`SELECT * FROM notifications`, async (err, dbRes) => {
+                                    if (!err) {
+                                        dbRes.rows.filter(x => message.receiver.includes(x.id)).forEach(row => {
+                                            webpush.sendNotification({
+                                                endpoint: row.endpoint,
+                                                keys: {
+                                                    p256dh: row.p256dh,
+                                                    auth: row.auth
+                                                }
+                                            }, JSON.stringify({ event: 'newMessage', ...websocketiedMessage })).catch(err => {
+                                                if (err.statusCode === 404 || err.statusCode === 410) {
+                                                    database.query(`DELETE FROM notifications WHERE endpoint = $1`, [row.endpoint], async (err, dbRes) => { });
+                                                }
+                                            });
+                                        });
+                                    }
+                                });
+
                                 Array.from(websockets.get(res.locals.school)?.get(message.author)?.values() ?? [])?.forEach(websocket => {
                                     websocket.send(JSON.stringify({ event: 'newMessage', ...websocketiedMessage }));
                                 });
@@ -123,12 +143,12 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 database.query(`SELECT * FROM users`, async (err, dbResu) => {
                     if (!err) {
                         if (oldMessage?.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                            let avaliableUsers = dbRes.rows;
+                            let avaliableUsers = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school));
                             const user = dbRes.rows.find(x => x.id === res.locals.user);
-                            if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator)[res.locals.school]) {
+                            if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator).includes(res.locals.school)) {
                                 avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
-                }
-                avaliableUsers = avaliableUsers.map(x => x.id);
+                            }
+                            avaliableUsers = avaliableUsers.filter(x => x.id !== res.locals.user).map(x => x.id);
                             if (!newMessage.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                                 if (newMessage.title && (oldMessage.pdf || newMessage.content) && newMessage.receiver.length > 0 && !newMessage.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
                                     const users = dbRes.rows;

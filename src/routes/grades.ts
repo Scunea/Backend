@@ -1,6 +1,7 @@
 import express from "express";
 import { Grade, GradeParsed } from "interfaces";
 import { Client } from 'pg';
+import webpush from 'web-push';
 
 export default (app: express.Application, database: Client, websockets: Map<string, Map<string, Map<string, WebSocket>>>) => {
     app.get('/grades', (req: express.Request, res: express.Response) => {
@@ -81,23 +82,44 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                             extraParse[res.locals.school][user.id] = parsed;
                             database.query(`UPDATE users SET grades = $1 WHERE id = $2`, [extraParse, x.id], (err, dbReso) => {
                                 if (!err) {
+
+                                    const fixedGrades = students.map(x => {
+                                        return Object.keys(JSON.parse(x.grades)[res.locals.school]).map(y => {
+                                            return {
+                                                subject: JSON.parse(dbRes.rows.find(x => x.id === y).teacher)[res.locals.school],
+                                                deliberation: y === res.locals.user ? parsed.deliberation : JSON.parse(x.grades)[res.locals.school][y].deliberation,
+                                                conceptual: y === res.locals.user ? parsed.conceptual : JSON.parse(x.grades)[res.locals.school][y].conceptual,
+                                                averageFirstFour: y === res.locals.user ? parsed.averageFirstFour : JSON.parse(x.grades)[res.locals.school][y].averageFirstFour,
+                                                averageSecondFour: y === res.locals.user ? parsed.averageSecondFour : JSON.parse(x.grades)[res.locals.school][y].averageSecondFour,
+                                                final: y === res.locals.user ? parsed.final : JSON.parse(x.grades)[res.locals.school][y].final
+                                            };
+                                        });
+                                    }).flat();
+
                                     students.forEach(student => {
                                         Array.from(websockets.get(res.locals.school)?.get(student.id)?.values() ?? [])?.forEach(websocket => {
-                                            const grades = JSON.parse(student.grades)[res.locals.school] ?? {};
-                                            websocket.send(JSON.stringify({
-                                                event: 'newGrades', grades: Object.keys(grades).map(x => {
-                                                    return {
-                                                        subject: JSON.parse(user.teacher)[res.locals.school],
-                                                        deliberation: grades[x].deliberation,
-                                                        conceptual: grades[x].conceptual,
-                                                        averageFirstFour: grades[x].averageFirstFour,
-                                                        averageSecondFour: grades[x].averageSecondFour,
-                                                        final: grades[x].final
-                                                    }
-                                                })
-                                            }));
+                                            websocket.send(JSON.stringify({ event: 'newGrades', grades: fixedGrades }));
                                         });
                                     });
+
+                                    database.query(`SELECT * FROM notifications`, async (err, dbRes) => {
+                                        if (!err) {
+                                            dbRes.rows.filter(x => students.map(x => x.id).includes(x.id)).forEach(row => {
+                                                webpush.sendNotification({
+                                                    endpoint: row.endpoint,
+                                                    keys: {
+                                                        p256dh: row.p256dh,
+                                                        auth: row.auth
+                                                    }
+                                                }, JSON.stringify({ event: 'newGrades', ...fixedGrades })).catch(err => {
+                                                    if (err.statusCode === 404 || err.statusCode === 410) {
+                                                        database.query(`DELETE FROM notifications WHERE endpoint = $1`, [row.endpoint], async (err, dbRes) => { });
+                                                    }
+                                                });
+                                            });
+                                        }
+                                    });
+
                                     res.status(200).send({});
                                 } else {
                                     console.log(err);

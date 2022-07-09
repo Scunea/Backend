@@ -74,23 +74,23 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         if (req.body.password) {
             database.query(`SELECT * FROM users`, async (err, dbRes) => {
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
-                        if (!user.tfa || (user.tfa && twofactor.verifyToken(user.tfa, req.body.otp ?? ''))) {
-                            if (await argon2.verify(user.password, req.body.password, { type: argon2.argon2id })) {
-                                database.query('DELETE FROM users WHERE id = $1', [user.id], async (err, dbRes) => {
-                                    if(!err) {    
-                                        res.send({});
-                                    } else {
-                                        console.log(err);
-                                        res.status(500).send({ error: "Server error." });
-                                    }
-                                });
+                if (!user.tfa || (user.tfa && twofactor.verifyToken(user.tfa, req.body.otp ?? ''))) {
+                    if (await argon2.verify(user.password, req.body.password, { type: argon2.argon2id })) {
+                        database.query('DELETE FROM users WHERE id = $1', [user.id], async (err, dbRes) => {
+                            if (!err) {
+                                res.send({});
                             } else {
-                                res.status(401).send({ error: "Invalid credentials." });
+                                console.log(err);
+                                res.status(500).send({ error: "Server error." });
                             }
-                        } else {
-                            res.status(401).send({ error: "Invalid credentials." });
-                        }
-                
+                        });
+                    } else {
+                        res.status(401).send({ error: "Invalid credentials." });
+                    }
+                } else {
+                    res.status(401).send({ error: "Invalid credentials." });
+                }
+
             });
         } else {
             res.status(400).send({ error: "Missing required argument." });
@@ -101,16 +101,16 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         database.query(`SELECT * FROM users`, async (err, dbRes) => {
             if (!err) {
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
-                    if (!user.tfa) {
-                        const secret = twofactor.generateSecret({ name: 'Scunea', account: user.email });;
-                        res.send(secret);
-                    } else {
-                        res.status(403).send({ error: "Not authorized." });;
-                    }
+                if (!user.tfa) {
+                    const secret = twofactor.generateSecret({ name: 'Scunea', account: user.email });;
+                    res.send(secret);
                 } else {
-                    console.log(err);
-                    res.status(500).send({ error: "Server error." });
+                    res.status(403).send({ error: "Not authorized." });;
                 }
+            } else {
+                console.log(err);
+                res.status(500).send({ error: "Server error." });
+            }
         });
     });
 
@@ -124,25 +124,25 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
         if (req.body.password && otpCode) {
             database.query(`SELECT * FROM users`, async (err, dbRes) => {
-            
+
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
-                        if (!user.tfa) {
-                            if (await argon2.verify(user.password, req.body.password, { type: argon2.argon2id }) && twofactor.verifyToken(otpCode, req.body.otp)) {
-                                database.query('UPDATE users SET tfa = $1 WHERE id = $2', [otpCode, user.id], async (err, dbRes) => {
-                                    if(!err) {    
-                                        res.send({});
-                                    } else {
-                                        console.log(err);
-                                        res.status(500).send({ error: "Server error." });
-                                    }
-                                });
+                if (!user.tfa) {
+                    if (await argon2.verify(user.password, req.body.password, { type: argon2.argon2id }) && twofactor.verifyToken(otpCode, req.body.otp)) {
+                        database.query('UPDATE users SET tfa = $1 WHERE id = $2', [otpCode, user.id], async (err, dbRes) => {
+                            if (!err) {
+                                res.send({});
                             } else {
-                                res.status(401).send({ error: "Invalid credentials." });
+                                console.log(err);
+                                res.status(500).send({ error: "Server error." });
                             }
-                        } else {
-                            res.status(403).send({ error: "Not authorized." });;
-                        }
-                
+                        });
+                    } else {
+                        res.status(401).send({ error: "Invalid credentials." });
+                    }
+                } else {
+                    res.status(403).send({ error: "Not authorized." });;
+                }
+
             });
         } else {
             res.status(400).send({ error: "Missing required argument." });
@@ -152,25 +152,25 @@ export default (app: express.Application, database: Client, websockets: Map<stri
     app.delete('/otp', async (req: express.Request, res: express.Response) => {
         if (req.body.password && req.body.otp) {
             database.query(`SELECT * FROM users`, async (err, dbRes) => {
-            
+
                 const user = dbRes.rows.find(x => x.id === res.locals.user);
-                        if (user.tfa) {
-                            if (await argon2.verify(user.password, req.body.password, { type: argon2.argon2id }) && twofactor.verifyToken(user.tfa, req.body.otp)) {
-                                database.query('UPDATE users SET tfa = $1 WHERE id = $2', ['', user.id], async (err, dbRes) => {
-                                    if(!err) {    
-                                        res.send({});
-                                    } else {
-                                        console.log(err);
-                                        res.status(500).send({ error: "Server error." });
-                                    }
-                                });
+                if (user.tfa) {
+                    if (await argon2.verify(user.password, req.body.password, { type: argon2.argon2id }) && twofactor.verifyToken(user.tfa, req.body.otp)) {
+                        database.query('UPDATE users SET tfa = $1 WHERE id = $2', ['', user.id], async (err, dbRes) => {
+                            if (!err) {
+                                res.send({});
                             } else {
-                                res.status(401).send({ error: "Invalid credentials." });
+                                console.log(err);
+                                res.status(500).send({ error: "Server error." });
                             }
-                        } else {
-                            res.status(403).send({ error: "Not authorized." });;
-                        }
-                
+                        });
+                    } else {
+                        res.status(401).send({ error: "Invalid credentials." });
+                    }
+                } else {
+                    res.status(403).send({ error: "Not authorized." });;
+                }
+
             });
         } else {
             res.status(400).send({ error: "Missing required argument." });

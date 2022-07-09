@@ -13,6 +13,8 @@ export default (app: express.Application, database: Client) => {
                         const user = { ...userRows.find(x => x.id === res.locals.user) };
                         if (user) {
                             const userPrivatelessPlusAvaliable: User = user;
+                            userPrivatelessPlusAvaliable.schoolName = dbRes.rows.find(x => x.id === res.locals.school).name;
+                            userPrivatelessPlusAvaliable.schoolLogo = dbRes.rows.find(x => x.id === res.locals.school).logo
                             delete userPrivatelessPlusAvaliable.token;
                             delete userPrivatelessPlusAvaliable.password;
                             delete userPrivatelessPlusAvaliable.verified;
@@ -39,20 +41,20 @@ export default (app: express.Application, database: Client) => {
                                 });
                             } else if (userPrivatelessPlusAvaliable.children.length > 0) {
                                 userPrivatelessPlusAvaliable.grades = userPrivatelessPlusAvaliable.children.map(child => {
-                                const grades = JSON.parse(userRows.find(y => y.id === child).grades)[res.locals.school] ?? {};
-                                return Object.keys(grades).map(z => {
-                                    return {
-                                        id: child,
-                                        fullName: userRows.find(y => y.id === child).name,
-                                        subject: JSON.parse(userRows.find(y => y.id === z).teacher)[res.locals.school],
-                                        deliberation: grades[z].deliberation,
-                                        conceptual: grades[z].conceptual,
-                                        averageFirstFour: grades[z].averageFirstFour,
-                                        averageSecondFour: grades[z].averageSecondFour,
-                                        final: grades[z].final
-                                    }
-                                });
-                            }).flat();
+                                    const grades = JSON.parse(userRows.find(y => y.id === child).grades)[res.locals.school] ?? {};
+                                    return Object.keys(grades).map(z => {
+                                        return {
+                                            id: child,
+                                            fullName: userRows.find(y => y.id === child).name,
+                                            subject: JSON.parse(userRows.find(y => y.id === z).teacher)[res.locals.school],
+                                            deliberation: grades[z].deliberation,
+                                            conceptual: grades[z].conceptual,
+                                            averageFirstFour: grades[z].averageFirstFour,
+                                            averageSecondFour: grades[z].averageSecondFour,
+                                            final: grades[z].final
+                                        }
+                                    });
+                                }).flat();
                             } else {
                                 userPrivatelessPlusAvaliable.grades = [];
                             }
@@ -60,13 +62,13 @@ export default (app: express.Application, database: Client) => {
                             if (!JSON.parse(userRows.find(x => x.id === res.locals.user).teacher)[res.locals.school] && !JSON.parse(userRows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
                                 avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
                             }
-                            userPrivatelessPlusAvaliable.avaliable = avaliableUsers.map(x => x.id).map(x => {
+                            userPrivatelessPlusAvaliable.avaliable = avaliableUsers.filter(x => x.id !== res.locals.user).map(x => x.id).map(x => {
                                 return {
                                     id: x,
                                     name: userRows.find(y => y.id === x).name,
                                     type: JSON.parse(userRows.find(y => y.id === x).administrator).includes(res.locals.school) ?
                                         'Administrator' : JSON.parse(userRows.find(y => y.id === x).teacher)[res.locals.school] ?
-                                            'Teacher' : userRows.find(y => JSON.parse(y.schools).includes(res.locals.school) &&  JSON.parse(y.parents)?.includes(x)) ?
+                                            'Teacher' : userRows.find(y => JSON.parse(y.schools).includes(res.locals.school) && JSON.parse(y.parents)?.includes(x)) ?
                                                 'Parent' :
                                                 'Student',
                                     teacher: JSON.parse(userRows.find(y => y.id === x).teacher)[res.locals.school],

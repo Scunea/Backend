@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import { transliterate } from 'transliteration';
 
 import login from './login';
+import notifications from './notifications';
 import info from './info';
 import grades from './grades';
 import messages from './messages';
@@ -44,6 +45,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         }
     });
 
+    notifications(app, database);
+
     info(app, database);
 
     grades(app, database, websockets);
@@ -80,6 +83,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 token: '',
                 id: '',
                 name: '',
+                schoolName: '',
                 email: '',
                 password: '',
                 tfa: '',
@@ -102,8 +106,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                             const ecPublicKey = await jose.importSPKI(fs.readFileSync(__dirname + '/../../public.key').toString(), 'ES256');
 
                             const info = await jose.jwtVerify(token.split('Bearer ')[1], ecPublicKey, {
-                                issuer: 'school',
-                                audience: 'school'
+                                issuer: 'scunea',
+                                audience: 'scunea'
                             });
                             resolve(res.rows.find(x => x.token === token));
 
