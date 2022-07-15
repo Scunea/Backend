@@ -156,8 +156,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 database.query(`SELECT * FROM users`, async (err, dbResu) => {
                     if (!err) {
                         if (oldActivity.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                            let avaliableUsers = dbRes.rows.map(x => x.id);
-                            if (JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school]) {
+                            let avaliableUsers = dbResu.rows.map(x => x.id);
+                            if (JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).teacher)[res.locals.school]) {
                                 if (!newActivity.receiver.some((x: string) => !avaliableUsers.includes(x))) {
                                     if (newActivity.title && newActivity.receiver.length > 0 && !newActivity.files.map((x: File) => !!files.find((y: string) => y.startsWith(x.id))).includes(false)) {
                                         database.query(`UPDATE activities SET title = $1, description = $2, files = $3, type = $4, delivery = $5, expiration = $6, receiver = $7 WHERE id = $8`, [newActivity.title, newActivity.description, JSON.stringify(newActivity.files), newActivity.type, newActivity.delivery, newActivity.expiration.toString(), JSON.stringify(newActivity.receiver), activityId], (err, dbRes) => {
@@ -265,6 +265,9 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     if (!err) {
                                         database.query(`UPDATE activities SET viewed = $1 WHERE id = $2`, [viewed, activityId], (err, dbRes) => {
                                             if (!err) {
+                                                Array.from(websockets.get(res.locals.school)?.get(res.locals.user)?.values() ?? [])?.forEach(websocket => {
+                                                    websocket.send(JSON.stringify({ event: 'viewedActivity', id: activityId }));
+                                                });
                                                 Array.from(websockets.get(res.locals.school)?.get(activity.author)?.values() ?? [])?.forEach(websocket => {
                                                     websocket.send(JSON.stringify({ event: 'viewedActivity', id: activityId, user: res.locals.user }));
                                                 });
@@ -390,6 +393,9 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
                         database.query(`UPDATE activities SET result = $1 WHERE id = $2`, [JSON.stringify(results), activityId], (err, dbRes) => {
                             if (!err) {
+                                Array.from(websockets.get(res.locals.school)?.get(res.locals.user)?.values() ?? [])?.forEach(websocket => {
+                                    websocket.send(JSON.stringify({ event: 'resultActivity', id: activityId, user: userId, result: req.body.result }));
+                                });
                                 Array.from(websockets.get(res.locals.school)?.get(userId)?.values() ?? [])?.forEach(websocket => {
                                     websocket.send(JSON.stringify({ event: 'resultActivity', id: activityId, result: req.body.result }));
                                 });

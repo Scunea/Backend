@@ -73,7 +73,6 @@ export default (app: express.Application, database: Client, websockets: Map<stri
 
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
         console.log(err);
-        console.log(err);
         res.status(500).send({ error: "Server error." });
     });
 

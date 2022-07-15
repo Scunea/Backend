@@ -9,7 +9,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
             if (!err) {
                 if (JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
                     if (req.body.name || (req.body.logo && (req.body.logo === '' || fs.readdirSync(__dirname + '/../../files').includes(req.body.logo)))) {
-                        database.query(`UPDATE schools SET name = $1, logo = $2 WHERE id = $3`, [req.body.name, req.body.logo, res.locals.school], (err, dbResp) => {
+                        if(req.body.logo) {
+                        database.query('UPDATE schools SET name = $1, logo = $2 WHERE id = $3', [req.body.name, req.body.logo, res.locals.school], (err, dbResp) => {
                             if (!err) {
                                 dbRes.rows.map(x => x.id).forEach((receiver: string) => {
                                     Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
@@ -22,6 +23,21 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                 res.status(500).send({ error: "Server error." });
                             }
                         });
+                    } else {
+                        database.query('UPDATE schools SET name = $1 WHERE id = $2', [req.body.name, res.locals.school], (err, dbResp) => {
+                            if (!err) {
+                                dbRes.rows.map(x => x.id).forEach((receiver: string) => {
+                                    Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
+                                        websocket.send(JSON.stringify({ event: 'editedSchool', name: req.body.name, logo: req.body.logo }));
+                                    });
+                                });
+                                res.send({});
+                            } else {
+                                console.log(err);
+                                res.status(500).send({ error: "Server error." });
+                            }
+                        });
+                    }
                     } else {
                         res.status(400).send({ error: "Missing required argument." });
                     }
@@ -38,7 +54,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
     app.post('/create', async (req: express.Request, res: express.Response) => {
         if (req.body.name) {
             const uuid = crypto.randomUUID();
-            database.query(`INSERT INTO schools (id, name) VALUES($1, $2)`, [uuid, req.body.name], (err, dbRes) => {
+            database.query(`INSERT INTO schools (id, name, logo) VALUES($1, $2, $3)`, [uuid, req.body.name, ''], (err, dbRes) => {
                 if (!err) {
                     database.query(`SELECT * FROM users`, async (err, dbRes) => {
                         if (!err) {

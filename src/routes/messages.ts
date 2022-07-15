@@ -3,6 +3,7 @@ import { File, Receiver } from '../interfaces';
 import express from "express";
 import { Client } from 'pg';
 import crypto from 'crypto';
+import * as cheerio from 'cheerio';
 import fs from 'fs';
 import webpush from 'web-push';
 
@@ -22,8 +23,16 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                 delete x.content;
                                 x.pdf = pdf.pdf;
                             } catch { }
+                            if(!x.pdf) {
+                                const html = cheerio.load(x.content);
+                                x.preview = html.text();
+                            }
                             x.files = JSON.parse(x.files);
-                            x.receiver = JSON.parse(x.receiver).map((x: string) => { return { id: x, name: dbRes.rows.find(y => y?.id === x)?.name ?? "Deleted user" } });
+                            if(x.author === res.locals.user || JSON.parse(dbRes.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
+                                x.receiver = JSON.parse(x.receiver).map((x: string) => { return { id: x, name: dbRes.rows.find(y => y?.id === x)?.name ?? "Deleted user" } });
+                            } else {
+                                delete x.receiver;
+                            }
                             x.author = { id: x.author, name: dbRes.rows.find(y => y?.id === x.author)?.name ?? "Deleted user" };
                             x.date = Number(x.date);
                             delete x.school;
@@ -66,7 +75,11 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         const users = dbRes.rows;
                         database.query(`INSERT INTO messages (id, title, content, files, author, date, receiver, school) VALUES($1, $2, $3, $4, $5, $6, $7, $8)`, [message.id, message.title, !message.content?.pdf ? message.content : JSON.stringify(message.content), JSON.stringify(message.files), message.author, message.date.toString(), JSON.stringify(message.receiver), message.school], (err, dbRes) => {
                             if (!err) {
-                                let websocketiedMessage = { ...message, pdf: message.content?.pdf };
+                                let websocketiedMessage = { ...message, pdf: message.content?.pdf, preview: '' };
+                                if(!websocketiedMessage.pdf) {
+                                    const html = cheerio.load(websocketiedMessage.content);
+                                    websocketiedMessage.preview = html.text();
+                                }
                                 websocketiedMessage.receiver = websocketiedMessage.receiver.map((x: string) => { return { id: x, name: users.find(y => y?.id === x)?.name ?? "Deleted user" } });
                                 websocketiedMessage.author = { id: websocketiedMessage.author, name: users.find(y => y?.id === websocketiedMessage.author)?.name ?? "Deleted user" };
                                 message.receiver.forEach((receiver: string) => {
@@ -127,6 +140,7 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         database.query(`SELECT * FROM messages`, async (err, dbRes) => {
             if (!err) {
                 const oldMessage = dbRes.rows.find(x => x.id === messageId);
+                if(oldMessage) {
                 let pdf = false;
                 try {
                     const pdfGet = JSON.parse(oldMessage.content);
@@ -143,8 +157,8 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                 database.query(`SELECT * FROM users`, async (err, dbResu) => {
                     if (!err) {
                         if (oldMessage?.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
-                            let avaliableUsers = dbRes.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school));
-                            const user = dbRes.rows.find(x => x.id === res.locals.user);
+                            let avaliableUsers = dbResu.rows.filter(x => JSON.parse(x.schools).includes(res.locals.school));
+                            const user = dbResu.rows.find(x => x.id === res.locals.user);
                             if (!JSON.parse(user.teacher)[res.locals.school] && !JSON.parse(user.administrator).includes(res.locals.school)) {
                                 avaliableUsers = avaliableUsers.filter(x => JSON.parse(x.teacher)[res.locals.school] || JSON.parse(x.administrator).includes(res.locals.school));
                             }
@@ -154,7 +168,11 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                                     const users = dbRes.rows;
                                     database.query(`UPDATE messages SET title = $1, content = $2, files = $3, receiver = $4 WHERE id = $5`, [newMessage.title, newMessage.content, JSON.stringify(newMessage.files), JSON.stringify(newMessage.receiver), messageId], (err, dbRes) => {
                                         if (!err) {
-                                            let websocketiedMessage = { ...newMessage };
+                                            let websocketiedMessage = { ...newMessage, pdf: newMessage.content?.pdf, preview: '' };
+                                if(!websocketiedMessage.pdf) {
+                                    const html = cheerio.load(websocketiedMessage.content);
+                                    websocketiedMessage.preview = html.text();
+                                }
                                             websocketiedMessage.receiver = websocketiedMessage.receiver.map((x: string) => { return { id: x, name: users.find(y => y?.id === x)?.name ?? "Deleted user" } });
                                             newMessage.receiver.forEach((receiver: string) => {
                                                 Array.from(websockets.get(res.locals.school)?.get(receiver)?.values() ?? [])?.forEach(websocket => {
@@ -188,6 +206,9 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                     }
                 });
             } else {
+                res.status(404).send({ error: "Not found." });
+            }
+            } else {
                 console.log(err);
                 res.status(500).send({ error: "Server error." });
             }
@@ -205,12 +226,13 @@ export default (app: express.Application, database: Client, websockets: Map<stri
         database.query(`SELECT * FROM messages`, async (err, dbRes) => {
             if (!err) {
                 const message = dbRes.rows.find(x => x.id === messageId);
+                if(message) {
                 database.query(`SELECT * FROM users`, async (err, dbResu) => {
                     if (!err) {
                         if (message?.author === res.locals.user || JSON.parse(dbResu.rows.find(x => x.id === res.locals.user).administrator).includes(res.locals.school)) {
                             database.query(`DELETE FROM messages WHERE id = $1`, [messageId], async (err, dbRes) => {
                                 if (!err) {
-                                    JSON.parse(message.receiver).forEach((oldReceiver: string) => {
+                                    [message?.author, ...JSON.parse(message.receiver)].forEach((oldReceiver: string) => {
                                         Array.from(websockets.get(res.locals.school)?.get(oldReceiver)?.values() ?? [])?.forEach(websocket => {
                                             websocket.send(JSON.stringify({ event: 'deletedMessage', id: messageId }));
                                         });
@@ -229,6 +251,9 @@ export default (app: express.Application, database: Client, websockets: Map<stri
                         res.status(500).send({ error: "Server error." });
                     }
                 });
+            } else {
+                res.status(404).send({ error: "Not found." });
+            }
             } else {
                 console.log(err);
                 res.status(500).send({ error: "Server error." });
