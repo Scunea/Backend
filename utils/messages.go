@@ -9,7 +9,7 @@ import (
 )
 
 func ParseMessages(db *sqlx.DB, messages []types.Message) []types.MessageParsed {
-	var messagesParsed []types.MessageParsed
+	var messagesParsed = []types.MessageParsed{}
 
 	for _, message := range messages {
 		var author, ok = GetUser(db, message.Author, "id")

@@ -9,7 +9,7 @@ import (
 )
 
 func ParseReports(db *sqlx.DB, reports []types.Report) []types.ReportParsed {
-	var reportsParsed []types.ReportParsed
+	var reportsParsed = []types.ReportParsed{}
 
 	for _, report := range reports {
 		var author, ok = GetUser(db, report.Author, "id")
