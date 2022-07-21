@@ -70,6 +70,7 @@ func GetUser(db *sqlx.DB, who string, how string) (types.User, bool) {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		rows.Close()
 		return user, true
 	} else {
 		return types.User{}, false
@@ -87,6 +88,7 @@ func GetMyUser(db *sqlx.DB, c *gin.Context) types.User {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		rows.Close()
 		return user
 	} else {
 		return types.User{}
@@ -114,6 +116,7 @@ func GetSchool(db *sqlx.DB, schoolId string) (types.School, bool) {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		rows.Close()
 		return school, true
 	} else {
 		return types.School{}, false
@@ -161,6 +164,7 @@ func GetActivity(db *sqlx.DB, activityId string, schoolId string) (types.Activit
 		if err != nil {
 			log.Fatalln(err)
 		}
+		rows.Close()
 		return activity, true
 	} else {
 		return types.Activity{}, false
@@ -195,6 +199,7 @@ func GetMessage(db *sqlx.DB, messageId string, schoolId string) (types.Message, 
 		if err != nil {
 			log.Fatalln(err)
 		}
+		rows.Close()
 		return message, true
 	} else {
 		return types.Message{}, false
@@ -246,6 +251,7 @@ func GetReport(db *sqlx.DB, reportId string, schoolId string) (types.Report, boo
 		if err != nil {
 			log.Fatalln(err)
 		}
+		rows.Close()
 		return report, true
 	} else {
 		return types.Report{}, false
