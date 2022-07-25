@@ -19,9 +19,9 @@ import (
 func CreateToken(id string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"id":  id,
-		"iat": time.Now().UnixMilli(),
+		"iat": time.Now().Unix(),
 		"iss": "scunea",
-		"exp": time.Now().Add(time.Hour * 24 * 7).UnixMilli(),
+		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(),
 	})
 
 	tokenString, err := token.SignedString(CreateHmacKey())
