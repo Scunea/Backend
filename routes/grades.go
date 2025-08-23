@@ -1,3 +1,21 @@
+/*
+This file is part of Scunea.
+Copyright (C) 2025  Mateo Hideg
+
+Scunea is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Scunea is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with Scunea.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package routes
 
 import (
@@ -16,7 +34,7 @@ func StartGrades(r *gin.Engine, db *sqlx.DB) {
 		var myUser = utils.GetMyUser(db, c)
 		if utils.Type(db, myUser, schoolId) == "teacher" {
 			var users = utils.GetUsersFromSchool(db, schoolId)
-			var grades []types.GradeExtra
+			var grades = []types.GradeExtra{}
 
 			for _, user := range users {
 				if utils.Type(db, user, schoolId) == "student" {
@@ -58,7 +76,7 @@ func StartGrades(r *gin.Engine, db *sqlx.DB) {
 					var grade map[string]map[string]types.Grade
 					json.Unmarshal([]byte(user.Grades), &grade)
 
-					var gradesExtra []types.GradeExtraTwo
+					var gradesExtra = []types.GradeExtraTwo{}
 
 					for key, grade := range grade[schoolId] {
 						var teacher, ok = utils.GetUser(db, key, "id")
@@ -95,7 +113,7 @@ func StartGrades(r *gin.Engine, db *sqlx.DB) {
 	})
 
 	r.POST("/grades", AuthRequired(db, false), func(c *gin.Context) {
-		var body []types.PostGradesRequest
+		var body = []types.PostGradesRequest{}
 		c.BindJSON(&body)
 
 		var schoolId = c.GetHeader("school")

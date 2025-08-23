@@ -1,3 +1,21 @@
+/*
+This file is part of Scunea.
+Copyright (C) 2025  Mateo Hideg
+
+Scunea is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Scunea is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with Scunea.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package routes
 
 import (
@@ -41,7 +59,7 @@ func StartMessages(r *gin.Engine, db *sqlx.DB) {
 
 		var schoolId = c.GetHeader("school")
 		var user = utils.GetMyUser(db, c)
-
+		print(body.Content)
 		if len(body.Title) > 0 && len(body.Content) > 0 && len(body.Receiver) > 0 {
 
 			var files = []types.IdAndName{}
@@ -126,7 +144,7 @@ func StartMessages(r *gin.Engine, db *sqlx.DB) {
 
 		if ok {
 			if utils.Type(db, user, schoolId) == "administrator" || message.Author == user.Id {
-				var files []types.IdAndName
+				var files = []types.IdAndName{}
 				json.Unmarshal([]byte(message.Files), &files)
 
 				if body.Files != nil {

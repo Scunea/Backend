@@ -1,3 +1,21 @@
+/*
+This file is part of Scunea.
+Copyright (C) 2025  Mateo Hideg
+
+Scunea is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Scunea is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with Scunea.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package utils
 
 import (
@@ -22,7 +40,7 @@ func InitDb(db *sqlx.DB) {
 }
 
 func GetUsers(db *sqlx.DB) []types.User {
-	var users []types.User
+	var users = []types.User{}
 	rows, err := db.Queryx("SELECT * FROM users")
 	if err != nil {
 		log.Fatalln(err)
@@ -39,7 +57,7 @@ func GetUsers(db *sqlx.DB) []types.User {
 }
 
 func GetUsersFromSchool(db *sqlx.DB, schoolId string) []types.User {
-	var users []types.User
+	var users = []types.User{}
 	rows, err := db.Queryx("SELECT * FROM users")
 	if err != nil {
 		log.Fatalln(err)
@@ -124,9 +142,9 @@ func GetSchool(db *sqlx.DB, schoolId string) (types.School, bool) {
 }
 
 func GetSchoolsWithName(db *sqlx.DB, jsonString string) []types.School {
-	var arr []string
+	var arr = []string{}
 	json.Unmarshal([]byte(jsonString), &arr)
-	var schools []types.School
+	var schools = []types.School{}
 	for _, school := range arr {
 		var schoolObj, ok = GetSchool(db, school)
 		if ok {
@@ -137,7 +155,7 @@ func GetSchoolsWithName(db *sqlx.DB, jsonString string) []types.School {
 }
 
 func GetActivities(db *sqlx.DB, schoolId string) []types.Activity {
-	var activities []types.Activity
+	var activities = []types.Activity{}
 	rows, err := db.Queryx("SELECT * FROM activities WHERE school = $1", schoolId)
 	if err != nil {
 		log.Fatalln(err)
@@ -172,7 +190,7 @@ func GetActivity(db *sqlx.DB, activityId string, schoolId string) (types.Activit
 }
 
 func GetMessages(db *sqlx.DB, schoolId string) []types.Message {
-	var messages []types.Message
+	var messages = []types.Message{}
 	rows, err := db.Queryx("SELECT * FROM messages WHERE school = $1", schoolId)
 	if err != nil {
 		log.Fatalln(err)
@@ -207,7 +225,7 @@ func GetMessage(db *sqlx.DB, messageId string, schoolId string) (types.Message, 
 }
 
 func GetNotifications(db *sqlx.DB) []types.Notification {
-	var notifications []types.Notification
+	var notifications = []types.Notification{}
 	rows, err := db.Queryx("SELECT * FROM notifications")
 	if err != nil {
 		log.Fatalln(err)
@@ -224,7 +242,7 @@ func GetNotifications(db *sqlx.DB) []types.Notification {
 }
 
 func GetReports(db *sqlx.DB, schoolId string) []types.Report {
-	var reports []types.Report
+	var reports = []types.Report{}
 	rows, err := db.Queryx("SELECT * FROM reports WHERE school = $1", schoolId)
 	if err != nil {
 		log.Fatalln(err)
