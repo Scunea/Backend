@@ -29,19 +29,19 @@ import (
 func Start(r *gin.Engine, db *sqlx.DB) {
 	r.Static("/static", "./files")
 
-	go StartAccount(r, db)
-	go StartActivities(r, db)
-	go StartGrades(r, db)
-	go StartInfo(r, db)
-	go StartLogin(r, db)
-	go StartMessages(r, db)
-	go StartNotifications(r, db)
-	go StartParents(r, db)
-	go StartPeople(r, db)
-	go StartReports(r, db)
-	go StartSchool(r, db)
-	go StartUpload(r, db)
-	go StartWebsocket(r, db)
+	StartAccount(r, db)
+	StartActivities(r, db)
+	StartGrades(r, db)
+	StartInfo(r, db)
+	StartLogin(r, db)
+	StartMessages(r, db)
+	StartNotifications(r, db)
+	StartParents(r, db)
+	StartPeople(r, db)
+	StartReports(r, db)
+	StartSchool(r, db)
+	StartUpload(r, db)
+	StartWebsocket(r, db)
 }
 
 func AuthRequired(db *sqlx.DB, skipSchool bool) gin.HandlerFunc {

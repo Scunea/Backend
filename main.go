@@ -66,7 +66,7 @@ func main() {
 
 	utils.InitDb(db)
 
-	go routes.Start(r, db)
+	routes.Start(r, db)
 
 	r.Run(":" + os.Getenv("SVR_PORT"))
 }
